@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..model import User
-from ..schemas import UserLogin
 from ..security import verify_password, create_access_token
 
 
@@ -11,9 +11,12 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 @router.post("/login")
-def login(user_login: UserLogin, db: Session = Depends(get_db)):
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
     existing_user = db.query(User).filter(
-        User.email == user_login.email
+        User.email == form_data.username
     ).first()
 
     if not existing_user:
@@ -22,12 +25,10 @@ def login(user_login: UserLogin, db: Session = Depends(get_db)):
             detail="Invalid email or password"
         )
 
-    password_valid = verify_password(
-        user_login.password,
+    if not verify_password(
+        form_data.password,
         existing_user.password_hash
-    )
-
-    if not password_valid:
+    ):
         raise HTTPException(
             status_code=401,
             detail="Invalid email or password"
@@ -36,9 +37,6 @@ def login(user_login: UserLogin, db: Session = Depends(get_db)):
     access_token = create_access_token(existing_user.id)
 
     return {
-        "message": "Login successful",
         "access_token": access_token,
-        "token_type": "bearer",
-        "user_id": existing_user.id,
-        "email": existing_user.email
+        "token_type": "bearer"
     }
