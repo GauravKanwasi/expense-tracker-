@@ -10,3 +10,6 @@ class UserCreate(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+    
+class CategoryCreate(BaseModel):
+    name: str
