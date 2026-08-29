@@ -33,3 +33,14 @@ class Transaction(Base):
     description = Column(String(255), nullable=True)
     date = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Budget(Base):
+    __tablename__ = "budgets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False)
+    year = Column(Integer, nullable=False)
+    month = Column(Integer, nullable=False)
+    amount = Column(Float, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

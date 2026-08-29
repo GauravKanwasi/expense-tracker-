@@ -1,11 +1,11 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..model import Transaction, Category, User
-from ..schemas import TransactionCreate, TransactionUpdate
+from ..schemas import TransactionCreate, TransactionResponse, TransactionUpdate
 from ..security import get_current_user
 
 
@@ -15,7 +15,19 @@ router = APIRouter(
 )
 
 
-@router.post("/")
+def transaction_response(transaction: Transaction):
+    return {
+        "id": transaction.id,
+        "category_id": transaction.category_id,
+        "amount": transaction.amount,
+        "type": transaction.type,
+        "description": transaction.description,
+        "date": transaction.date,
+        "created_at": transaction.created_at
+    }
+
+
+@router.post("/", response_model=TransactionResponse)
 def create_transaction(
     transaction: TransactionCreate,
     db: Session = Depends(get_db),
@@ -32,23 +44,11 @@ def create_transaction(
             detail="Category not found"
         )
 
-    if transaction.type not in ["income", "expense"]:
-        raise HTTPException(
-            status_code=400,
-            detail="Type must be either income or expense"
-        )
-
-    if transaction.amount <= 0:
-        raise HTTPException(
-            status_code=400,
-            detail="Amount must be greater than 0"
-        )
-
     new_transaction = Transaction(
         user_id=current_user.id,
         category_id=transaction.category_id,
         amount=transaction.amount,
-        type=transaction.type,
+        type=transaction.type.value,
         description=transaction.description,
         date=transaction.date
     )
@@ -57,22 +57,17 @@ def create_transaction(
     db.commit()
     db.refresh(new_transaction)
 
-    return {
-        "id": new_transaction.id,
-        "category_id": new_transaction.category_id,
-        "amount": new_transaction.amount,
-        "type": new_transaction.type,
-        "description": new_transaction.description,
-        "date": new_transaction.date
-    }
+    return transaction_response(new_transaction)
 
 
-@router.get("/")
+@router.get("/", response_model=list[TransactionResponse])
 def get_transactions(
     type: str | None = None,
     category_id: int | None = None,
     start_date: date | None = None,
     end_date: date | None = None,
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -82,6 +77,18 @@ def get_transactions(
                 status_code=400,
                 detail="start_date must be before or equal to end_date"
             )
+
+    if skip < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="skip cannot be negative"
+        )
+
+    if limit < 1 or limit > 100:
+        raise HTTPException(
+            status_code=400,
+            detail="limit must be between 1 and 100"
+        )
 
     query = db.query(Transaction).filter(
         Transaction.user_id == current_user.id
@@ -106,7 +113,7 @@ def get_transactions(
     if start_date is not None:
         start_datetime = datetime.combine(
             start_date,
-            datetime.min.time()
+            time.min
         )
         query = query.filter(
             Transaction.date >= start_datetime
@@ -116,7 +123,7 @@ def get_transactions(
         next_day = end_date + timedelta(days=1)
         end_datetime = datetime.combine(
             next_day,
-            datetime.min.time()
+            time.min
         )
         query = query.filter(
             Transaction.date < end_datetime
@@ -124,23 +131,12 @@ def get_transactions(
 
     transactions = query.order_by(
         Transaction.date.desc()
-    ).all()
+    ).offset(skip).limit(limit).all()
 
-    return [
-        {
-            "id": transaction.id,
-            "category_id": transaction.category_id,
-            "amount": transaction.amount,
-            "type": transaction.type,
-            "description": transaction.description,
-            "date": transaction.date,
-            "created_at": transaction.created_at
-        }
-        for transaction in transactions
-    ]
+    return [transaction_response(item) for item in transactions]
 
 
-@router.get("/{transaction_id}")
+@router.get("/{transaction_id}", response_model=TransactionResponse)
 def get_transaction(
     transaction_id: int,
     db: Session = Depends(get_db),
@@ -157,18 +153,10 @@ def get_transaction(
             detail="Transaction not found"
         )
 
-    return {
-        "id": transaction.id,
-        "category_id": transaction.category_id,
-        "amount": transaction.amount,
-        "type": transaction.type,
-        "description": transaction.description,
-        "date": transaction.date,
-        "created_at": transaction.created_at
-    }
+    return transaction_response(transaction)
 
 
-@router.put("/{transaction_id}")
+@router.put("/{transaction_id}", response_model=TransactionResponse)
 def update_transaction(
     transaction_id: int,
     transaction_data: TransactionUpdate,
@@ -197,36 +185,16 @@ def update_transaction(
             detail="Category not found"
         )
 
-    if transaction_data.type not in ["income", "expense"]:
-        raise HTTPException(
-            status_code=400,
-            detail="Type must be either income or expense"
-        )
-
-    if transaction_data.amount <= 0:
-        raise HTTPException(
-            status_code=400,
-            detail="Amount must be greater than 0"
-        )
-
     transaction.category_id = transaction_data.category_id
     transaction.amount = transaction_data.amount
-    transaction.type = transaction_data.type
+    transaction.type = transaction_data.type.value
     transaction.description = transaction_data.description
     transaction.date = transaction_data.date
 
     db.commit()
     db.refresh(transaction)
 
-    return {
-        "id": transaction.id,
-        "category_id": transaction.category_id,
-        "amount": transaction.amount,
-        "type": transaction.type,
-        "description": transaction.description,
-        "date": transaction.date,
-        "created_at": transaction.created_at
-    }
+    return transaction_response(transaction)
 
 
 @router.delete("/{transaction_id}")
