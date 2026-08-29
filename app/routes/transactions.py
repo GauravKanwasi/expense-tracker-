@@ -67,12 +67,28 @@ def create_transaction(
 
 @router.get("/")
 def get_transactions(
+    type: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    transactions = db.query(Transaction).filter(
+    query = db.query(Transaction).filter(
         Transaction.user_id == current_user.id
-    ).order_by(Transaction.date.desc()).all()
+    )
+
+    if type is not None:
+        if type not in ["income", "expense"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Type must be either income or expense"
+            )
+
+        query = query.filter(
+            Transaction.type == type
+        )
+
+    transactions = query.order_by(
+        Transaction.date.desc()
+    ).all()
 
     return [
         {
