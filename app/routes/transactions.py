@@ -3,11 +3,14 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..model import Transaction, Category, User
-from ..schemas import TransactionCreate
+from ..schemas import TransactionCreate, TransactionUpdate
 from ..security import get_current_user
 
 
-router = APIRouter(prefix="/transactions", tags=["transactions"])
+router = APIRouter(
+    prefix="/transactions",
+    tags=["transactions"]
+)
 
 
 @router.post("/")
@@ -59,4 +62,141 @@ def create_transaction(
         "type": new_transaction.type,
         "description": new_transaction.description,
         "date": new_transaction.date
+    }
+
+
+@router.get("/")
+def get_transactions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    transactions = db.query(Transaction).filter(
+        Transaction.user_id == current_user.id
+    ).order_by(Transaction.date.desc()).all()
+
+    return [
+        {
+            "id": transaction.id,
+            "category_id": transaction.category_id,
+            "amount": transaction.amount,
+            "type": transaction.type,
+            "description": transaction.description,
+            "date": transaction.date,
+            "created_at": transaction.created_at
+        }
+        for transaction in transactions
+    ]
+
+
+@router.get("/{transaction_id}")
+def get_transaction(
+    transaction_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    transaction = db.query(Transaction).filter(
+        Transaction.id == transaction_id,
+        Transaction.user_id == current_user.id
+    ).first()
+
+    if not transaction:
+        raise HTTPException(
+            status_code=404,
+            detail="Transaction not found"
+        )
+
+    return {
+        "id": transaction.id,
+        "category_id": transaction.category_id,
+        "amount": transaction.amount,
+        "type": transaction.type,
+        "description": transaction.description,
+        "date": transaction.date,
+        "created_at": transaction.created_at
+    }
+
+
+@router.put("/{transaction_id}")
+def update_transaction(
+    transaction_id: int,
+    transaction_data: TransactionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    transaction = db.query(Transaction).filter(
+        Transaction.id == transaction_id,
+        Transaction.user_id == current_user.id
+    ).first()
+
+    if not transaction:
+        raise HTTPException(
+            status_code=404,
+            detail="Transaction not found"
+        )
+
+    category = db.query(Category).filter(
+        Category.id == transaction_data.category_id,
+        Category.user_id == current_user.id
+    ).first()
+
+    if not category:
+        raise HTTPException(
+            status_code=404,
+            detail="Category not found"
+        )
+
+    if transaction_data.type not in ["income", "expense"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Type must be either income or expense"
+        )
+
+    if transaction_data.amount <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Amount must be greater than 0"
+        )
+
+    transaction.category_id = transaction_data.category_id
+    transaction.amount = transaction_data.amount
+    transaction.type = transaction_data.type
+    transaction.description = transaction_data.description
+    transaction.date = transaction_data.date
+
+    db.commit()
+    db.refresh(transaction)
+
+    return {
+        "id": transaction.id,
+        "category_id": transaction.category_id,
+        "amount": transaction.amount,
+        "type": transaction.type,
+        "description": transaction.description,
+        "date": transaction.date,
+        "created_at": transaction.created_at
+    }
+
+
+@router.delete("/{transaction_id}")
+def delete_transaction(
+    transaction_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    transaction = db.query(Transaction).filter(
+        Transaction.id == transaction_id,
+        Transaction.user_id == current_user.id
+    ).first()
+
+    if not transaction:
+        raise HTTPException(
+            status_code=404,
+            detail="Transaction not found"
+        )
+
+    db.delete(transaction)
+    db.commit()
+
+    return {
+        "message": "Transaction deleted successfully"
     }
