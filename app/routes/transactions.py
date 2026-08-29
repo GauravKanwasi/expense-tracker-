@@ -1,3 +1,5 @@
+from datetime import date, datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -69,9 +71,18 @@ def create_transaction(
 def get_transactions(
     type: str | None = None,
     category_id: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    if start_date is not None and end_date is not None:
+        if start_date > end_date:
+            raise HTTPException(
+                status_code=400,
+                detail="start_date must be before or equal to end_date"
+            )
+
     query = db.query(Transaction).filter(
         Transaction.user_id == current_user.id
     )
@@ -90,6 +101,25 @@ def get_transactions(
     if category_id is not None:
         query = query.filter(
             Transaction.category_id == category_id
+        )
+
+    if start_date is not None:
+        start_datetime = datetime.combine(
+            start_date,
+            datetime.min.time()
+        )
+        query = query.filter(
+            Transaction.date >= start_datetime
+        )
+
+    if end_date is not None:
+        next_day = end_date + timedelta(days=1)
+        end_datetime = datetime.combine(
+            next_day,
+            datetime.min.time()
+        )
+        query = query.filter(
+            Transaction.date < end_datetime
         )
 
     transactions = query.order_by(
