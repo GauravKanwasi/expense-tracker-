@@ -68,6 +68,7 @@ def create_transaction(
 @router.get("/")
 def get_transactions(
     type: str | None = None,
+    category_id: int | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -84,6 +85,11 @@ def get_transactions(
 
         query = query.filter(
             Transaction.type == type
+        )
+
+    if category_id is not None:
+        query = query.filter(
+            Transaction.category_id == category_id
         )
 
     transactions = query.order_by(
