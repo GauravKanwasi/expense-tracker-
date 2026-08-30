@@ -2,12 +2,34 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..model import Category, User
+from ..model import Category, Transaction, User
 from ..schemas import CategoryCreate, CategoryUpdate
 from ..security import get_current_user
 
 
 router = APIRouter(prefix="/categories", tags=["categories"])
+
+
+def category_response(category: Category):
+    return {
+        "id": category.id,
+        "name": category.name
+    }
+
+
+def get_user_category(db: Session, category_id: int, user_id: int):
+    category = db.query(Category).filter(
+        Category.id == category_id,
+        Category.user_id == user_id
+    ).first()
+
+    if not category:
+        raise HTTPException(
+            status_code=404,
+            detail="Category not found"
+        )
+
+    return category
 
 
 @router.post("/")
@@ -36,10 +58,7 @@ def create_category(
     db.commit()
     db.refresh(new_category)
 
-    return {
-        "id": new_category.id,
-        "name": new_category.name
-    }
+    return category_response(new_category)
 
 
 @router.get("/")
@@ -51,13 +70,7 @@ def get_categories(
         Category.user_id == current_user.id
     ).all()
 
-    return [
-        {
-            "id": category.id,
-            "name": category.name
-        }
-        for category in categories
-    ]
+    return [category_response(category) for category in categories]
 
 
 @router.get("/{category_id}")
@@ -66,21 +79,8 @@ def get_category(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    category = db.query(Category).filter(
-        Category.id == category_id,
-        Category.user_id == current_user.id
-    ).first()
-
-    if not category:
-        raise HTTPException(
-            status_code=404,
-            detail="Category not found"
-        )
-
-    return {
-        "id": category.id,
-        "name": category.name
-    }
+    category = get_user_category(db, category_id, current_user.id)
+    return category_response(category)
 
 
 @router.put("/{category_id}")
@@ -90,16 +90,7 @@ def update_category(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    category = db.query(Category).filter(
-        Category.id == category_id,
-        Category.user_id == current_user.id
-    ).first()
-
-    if not category:
-        raise HTTPException(
-            status_code=404,
-            detail="Category not found"
-        )
+    category = get_user_category(db, category_id, current_user.id)
 
     duplicate_category = db.query(Category).filter(
         Category.name == category_data.name,
@@ -118,10 +109,7 @@ def update_category(
     db.commit()
     db.refresh(category)
 
-    return {
-        "id": category.id,
-        "name": category.name
-    }
+    return category_response(category)
 
 
 @router.delete("/{category_id}")
@@ -130,15 +118,17 @@ def delete_category(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    category = db.query(Category).filter(
-        Category.id == category_id,
-        Category.user_id == current_user.id
+    category = get_user_category(db, category_id, current_user.id)
+
+    transactions_using_category = db.query(Transaction).filter(
+        Transaction.category_id == category_id,
+        Transaction.user_id == current_user.id
     ).first()
 
-    if not category:
+    if transactions_using_category:
         raise HTTPException(
-            status_code=404,
-            detail="Category not found"
+            status_code=400,
+            detail="Cannot delete a category that has transactions"
         )
 
     db.delete(category)

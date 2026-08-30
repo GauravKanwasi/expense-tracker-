@@ -23,6 +23,21 @@ def budget_response(budget: Budget):
     }
 
 
+def get_user_budget(db: Session, budget_id: int, user_id: int):
+    budget = db.query(Budget).filter(
+        Budget.id == budget_id,
+        Budget.user_id == user_id
+    ).first()
+
+    if not budget:
+        raise HTTPException(
+            status_code=404,
+            detail="Budget not found"
+        )
+
+    return budget
+
+
 @router.post("/", response_model=BudgetResponse)
 def create_budget(
     budget_data: BudgetCreate,
@@ -76,16 +91,7 @@ def get_budget(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    budget = db.query(Budget).filter(
-        Budget.id == budget_id,
-        Budget.user_id == current_user.id
-    ).first()
-
-    if not budget:
-        raise HTTPException(
-            status_code=404,
-            detail="Budget not found"
-        )
+    budget = get_user_budget(db, budget_id, current_user.id)
 
     return budget_response(budget)
 
@@ -97,16 +103,7 @@ def update_budget(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    budget = db.query(Budget).filter(
-        Budget.id == budget_id,
-        Budget.user_id == current_user.id
-    ).first()
-
-    if not budget:
-        raise HTTPException(
-            status_code=404,
-            detail="Budget not found"
-        )
+    budget = get_user_budget(db, budget_id, current_user.id)
 
     duplicate_budget = db.query(Budget).filter(
         Budget.user_id == current_user.id,
@@ -137,16 +134,7 @@ def delete_budget(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    budget = db.query(Budget).filter(
-        Budget.id == budget_id,
-        Budget.user_id == current_user.id
-    ).first()
-
-    if not budget:
-        raise HTTPException(
-            status_code=404,
-            detail="Budget not found"
-        )
+    budget = get_user_budget(db, budget_id, current_user.id)
 
     db.delete(budget)
     db.commit()

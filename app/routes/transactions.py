@@ -27,6 +27,21 @@ def transaction_response(transaction: Transaction):
     }
 
 
+def get_user_transaction(db: Session, transaction_id: int, user_id: int):
+    transaction = db.query(Transaction).filter(
+        Transaction.id == transaction_id,
+        Transaction.user_id == user_id
+    ).first()
+
+    if not transaction:
+        raise HTTPException(
+            status_code=404,
+            detail="Transaction not found"
+        )
+
+    return transaction
+
+
 @router.post("/", response_model=TransactionResponse)
 def create_transaction(
     transaction: TransactionCreate,
@@ -142,16 +157,7 @@ def get_transaction(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    transaction = db.query(Transaction).filter(
-        Transaction.id == transaction_id,
-        Transaction.user_id == current_user.id
-    ).first()
-
-    if not transaction:
-        raise HTTPException(
-            status_code=404,
-            detail="Transaction not found"
-        )
+    transaction = get_user_transaction(db, transaction_id, current_user.id)
 
     return transaction_response(transaction)
 
@@ -163,16 +169,7 @@ def update_transaction(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    transaction = db.query(Transaction).filter(
-        Transaction.id == transaction_id,
-        Transaction.user_id == current_user.id
-    ).first()
-
-    if not transaction:
-        raise HTTPException(
-            status_code=404,
-            detail="Transaction not found"
-        )
+    transaction = get_user_transaction(db, transaction_id, current_user.id)
 
     category = db.query(Category).filter(
         Category.id == transaction_data.category_id,
@@ -203,16 +200,7 @@ def delete_transaction(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    transaction = db.query(Transaction).filter(
-        Transaction.id == transaction_id,
-        Transaction.user_id == current_user.id
-    ).first()
-
-    if not transaction:
-        raise HTTPException(
-            status_code=404,
-            detail="Transaction not found"
-        )
+    transaction = get_user_transaction(db, transaction_id, current_user.id)
 
     db.delete(transaction)
     db.commit()
