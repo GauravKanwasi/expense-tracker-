@@ -10,6 +10,13 @@
     <a href="http://127.0.0.1:8000/docs">Open Swagger docs</a> |
     <a href="http://127.0.0.1:8000/health">Check API health</a>
   </p>
+  <table>
+    <tr>
+      <td><strong>Backend</strong><br>Ready for frontend integration</td>
+      <td><strong>Interactive docs</strong><br>Swagger UI at <code>/docs</code></td>
+      <td><strong>Tests</strong><br>9 passing</td>
+    </tr>
+  </table>
 </div>
 
 ## Architecture
@@ -36,14 +43,29 @@ Swagger at `/docs` is the interactive client for the backend until the React fro
 
 ## Quick navigation
 
+- [Start here](#start-here)
 - [What works now](#what-works-now)
 - [Run locally](#run-locally)
 - [Use the interactive API docs](#use-the-interactive-api-docs)
 - [API endpoints](#api-endpoints)
+- [Frontend integration](#frontend-integration)
 - [Copy-ready examples](#copy-ready-examples)
 - [Test the backend](#test-the-backend)
 - [Security and production checklist](#security-and-production-checklist)
 - [Next steps](#next-steps)
+
+## Start here
+
+<details open>
+  <summary><strong>Run the API in three steps</strong></summary>
+
+1. Install the dependencies and copy <code>.env.example</code> to <code>.env</code>.
+2. Start the server with <code>uvicorn app.main:app --reload</code>.
+3. Open <a href="http://127.0.0.1:8000/docs">Swagger UI</a>, register, log in, and click <strong>Authorize</strong>.
+
+</details>
+
+Once authorized, create a category before adding a transaction. The transaction <code>category_id</code> must belong to the logged-in user.
 
 ## What works now
 
@@ -179,6 +201,41 @@ All endpoints marked with a lock require a Bearer token.
 | Analytics | GET | `/analytics/summary` | Income, expenses, and balance | Yes |
 | Analytics | GET | `/analytics/by-category` | Totals grouped by category | Yes |
 
+## Frontend integration
+
+Use this small JavaScript example after the React frontend receives a token from <code>/auth/login</code>:
+
+~~~javascript
+const API_URL = "http://127.0.0.1:8000";
+
+const response = await fetch(API_URL + "/transactions/", {
+  headers: {
+    Authorization: "Bearer " + accessToken
+  }
+});
+
+const transactions = await response.json();
+~~~
+
+The login request is form-encoded because it follows the OAuth2 password flow:
+
+~~~javascript
+const loginBody = new URLSearchParams({
+  username: email,
+  password: password
+});
+
+const response = await fetch(API_URL + "/auth/login", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  body: loginBody
+});
+~~~
+
+Local CORS currently allows <code>http://localhost:5173</code> and <code>http://127.0.0.1:5173</code>.
+
 ## Copy-ready examples
 
 ### Register
@@ -267,10 +324,11 @@ Use this checklist while testing in Swagger:
 
 ## Common responses
 
+Successful CRUD requests currently return status <code>200</code>.
+
 | Status | Meaning | Typical cause |
 | --- | --- | --- |
 | 200 | Success | Request completed |
-| 201 | Created | Resource created, where applicable |
 | 400 | Bad request | Duplicate data, invalid filter, or protected category deletion |
 | 401 | Unauthorized | Missing, expired, or invalid token |
 | 404 | Not found | Resource does not belong to the logged-in user or does not exist |
