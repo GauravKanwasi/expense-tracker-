@@ -1,8 +1,27 @@
-# Expense Tracker API
-
-A simple FastAPI backend for tracking personal income, expenses, categories, monthly budgets, and spending analytics.
+<div align="center">
+  <h1>Expense Tracker API</h1>
+  <p>A clean FastAPI backend for personal income, expenses, budgets, and analytics.</p>
+  <p>
+    <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12">
+    <img src="https://img.shields.io/badge/FastAPI-REST_API-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI REST API">
+    <img src="https://img.shields.io/badge/tests-9_passing-2ea44f?style=for-the-badge" alt="Nine tests passing">
+  </p>
+  <p>
+    <a href="http://127.0.0.1:8000/docs">Open Swagger docs</a> |
+    <a href="http://127.0.0.1:8000/health">Check API health</a>
+  </p>
+</div>
 
 ## Architecture
+
+<div align="center">
+  <img src="docs/architecture.svg" alt="Animated architecture showing React or Vite, FastAPI, SQLAlchemy, and PostgreSQL" width="100%">
+</div>
+
+<p align="center"><sub>The glowing lines animate request flow. The animation respects reduced-motion settings and the diagram remains readable as a static image.</sub></p>
+
+<details>
+  <summary>Show the lightweight architecture fallback</summary>
 
 ~~~mermaid
 flowchart LR
@@ -11,7 +30,9 @@ flowchart LR
     ORM --> DB[(PostgreSQL)]
 ~~~
 
-The frontend is the next major step. Until then, Swagger at `/docs` is the interactive client for the backend.
+</details>
+
+Swagger at `/docs` is the interactive client for the backend until the React frontend is ready.
 
 ## Quick navigation
 

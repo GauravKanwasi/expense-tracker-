@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 540" role="img" aria-labelledby="title desc">
+  <title id="title">Expense Tracker API architecture</title>
+  <desc id="desc">Animated data flow from a React frontend through FastAPI and SQLAlchemy into PostgreSQL.</desc>
+  <defs>
+    <linearGradient id="background" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#08111f"/>
+      <stop offset="55%" stop-color="#10233b"/>
+      <stop offset="100%" stop-color="#102e36"/>
+    </linearGradient>
+    <linearGradient id="api-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#0f766e"/>
+    </linearGradient>
+    <linearGradient id="db-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6ee7b7"/>
+    </marker>
+    <style><![CDATA[
+      .heading { fill: #f8fafc; font: 700 28px Inter, Segoe UI, Arial, sans-serif; }
+      .subtitle { fill: #94a3b8; font: 400 15px Inter, Segoe UI, Arial, sans-serif; }
+      .node-title { fill: #f8fafc; font: 700 20px Inter, Segoe UI, Arial, sans-serif; }
+      .node-copy { fill: #cbd5e1; font: 400 14px Inter, Segoe UI, Arial, sans-serif; }
+      .module-title { fill: #d1fae5; font: 600 13px Inter, Segoe UI, Arial, sans-serif; }
+      .module-copy { fill: #94a3b8; font: 400 11px Inter, Segoe UI, Arial, sans-serif; }
+      .label { fill: #6ee7b7; font: 600 12px Inter, Segoe UI, Arial, sans-serif; letter-spacing: 1px; }
+      .flow { fill: none; stroke: #34d399; stroke-width: 4; stroke-linecap: round; stroke-dasharray: 10 12; animation: dash 2.6s linear infinite; marker-end: url(#arrow); }
+      .module-link { fill: none; stroke: #2dd4bf; stroke-width: 2; stroke-dasharray: 5 8; opacity: 0.7; }
+      .node { animation: breathe 3.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+      .packet { filter: drop-shadow(0 0 6px #6ee7b7); }
+      @keyframes dash { to { stroke-dashoffset: -44; } }
+      @keyframes breathe { 0%, 100% { opacity: 0.92; } 50% { opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) {
+        .flow { animation: none; }
+        .node { animation: none; }
+        .packet { display: none; }
+      }
+    ]]></style>
+  </defs>
+
+  <rect width="1200" height="540" rx="28" fill="url(#background)"/>
+  <circle cx="1090" cy="70" r="150" fill="#14b8a6" opacity="0.08"/>
+  <circle cx="100" cy="500" r="180" fill="#3b82f6" opacity="0.07"/>
+
+  <text x="600" y="48" text-anchor="middle" class="heading">Expense Tracker data flow</text>
+  <text x="600" y="75" text-anchor="middle" class="subtitle">One secure path for your frontend, API, database, and analytics</text>
+
+  <path d="M 265 220 H 350" class="flow"/>
+  <path d="M 565 220 H 650" class="flow"/>
+  <path d="M 865 220 H 950" class="flow"/>
+
+  <circle r="6" fill="#a7f3d0" class="packet">
+    <animateMotion dur="2.2s" repeatCount="indefinite" path="M 265 220 H 350"/>
+  </circle>
+  <circle r="6" fill="#a7f3d0" class="packet">
+    <animateMotion dur="2.2s" begin="0.7s" repeatCount="indefinite" path="M 565 220 H 650"/>
+  </circle>
+  <circle r="6" fill="#a7f3d0" class="packet">
+    <animateMotion dur="2.2s" begin="1.4s" repeatCount="indefinite" path="M 865 220 H 950"/>
+  </circle>
+
+  <text x="307" y="202" text-anchor="middle" class="label">JSON + JWT</text>
+  <text x="607" y="202" text-anchor="middle" class="label">ORM</text>
+  <text x="907" y="202" text-anchor="middle" class="label">SQL</text>
+
+  <g class="node" filter="url(#shadow)">
+    <rect x="50" y="150" width="215" height="140" rx="20" fill="#172554" stroke="#60a5fa" stroke-width="2"/>
+    <text x="75" y="198" class="node-title">React / Vite</text>
+    <text x="75" y="226" class="node-copy">Frontend client</text>
+    <text x="75" y="251" class="node-copy">Dashboard and forms</text>
+    <text x="75" y="275" class="node-copy">Next step of the project</text>
+  </g>
+
+  <g class="node" filter="url(#shadow)">
+    <rect x="350" y="150" width="215" height="140" rx="20" fill="url(#api-gradient)" stroke="#6ee7b7" stroke-width="2"/>
+    <text x="375" y="198" class="node-title">FastAPI</text>
+    <text x="375" y="226" class="node-copy">REST API and Swagger</text>
+    <text x="375" y="251" class="node-copy">JWT authentication</text>
+    <text x="375" y="275" class="node-copy">Validation and ownership</text>
+  </g>
+
+  <g class="node" filter="url(#shadow)">
+    <rect x="650" y="150" width="215" height="140" rx="20" fill="#3f1d5b" stroke="#c084fc" stroke-width="2"/>
+    <text x="675" y="198" class="node-title">SQLAlchemy</text>
+    <text x="675" y="226" class="node-copy">Models and relationships</text>
+    <text x="675" y="251" class="node-copy">User-scoped queries</text>
+    <text x="675" y="275" class="node-copy">Database sessions</text>
+  </g>
+
+  <g class="node" filter="url(#shadow)">
+    <rect x="950" y="150" width="200" height="140" rx="20" fill="url(#db-gradient)" stroke="#93c5fd" stroke-width="2"/>
+    <text x="975" y="198" class="node-title">PostgreSQL</text>
+    <text x="975" y="226" class="node-copy">Persistent data</text>
+    <text x="975" y="251" class="node-copy">Users and categories</text>
+    <text x="975" y="275" class="node-copy">Transactions and budgets</text>
+  </g>
+
+  <path d="M 457 290 V 345" class="module-link"/>
+  <path d="M 457 345 H 745" class="module-link"/>
+  <path d="M 505 345 V 370" class="module-link"/>
+  <path d="M 577 345 V 370" class="module-link"/>
+  <path d="M 649 345 V 370" class="module-link"/>
+  <path d="M 721 345 V 370" class="module-link"/>
+  <path d="M 793 345 V 370" class="module-link"/>
+
+  <rect x="315" y="345" width="570" height="125" rx="20" fill="#0f172a" stroke="#1f766b" stroke-width="1.5" opacity="0.95"/>
+  <text x="345" y="375" class="label">API MODULES</text>
+
+  <g>
+    <rect x="340" y="395" width="90" height="48" rx="10" fill="#12352f"/>
+    <text x="385" y="416" text-anchor="middle" class="module-title">Auth</text>
+    <text x="385" y="433" text-anchor="middle" class="module-copy">JWT</text>
+  </g>
+  <g>
+    <rect x="442" y="395" width="90" height="48" rx="10" fill="#12352f"/>
+    <text x="487" y="416" text-anchor="middle" class="module-title">Users</text>
+    <text x="487" y="433" text-anchor="middle" class="module-copy">Profiles</text>
+  </g>
+  <g>
+    <rect x="544" y="395" width="90" height="48" rx="10" fill="#12352f"/>
+    <text x="589" y="416" text-anchor="middle" class="module-title">Categories</text>
+    <text x="589" y="433" text-anchor="middle" class="module-copy">Labels</text>
+  </g>
+  <g>
+    <rect x="646" y="395" width="90" height="48" rx="10" fill="#12352f"/>
+    <text x="691" y="416" text-anchor="middle" class="module-title">Transactions</text>
+    <text x="691" y="433" text-anchor="middle" class="module-copy">Income / spend</text>
+  </g>
+  <g>
+    <rect x="748" y="395" width="90" height="48" rx="10" fill="#12352f"/>
+    <text x="793" y="416" text-anchor="middle" class="module-title">Analytics</text>
+    <text x="793" y="433" text-anchor="middle" class="module-copy">Insights</text>
+  </g>
+
+  <text x="600" y="510" text-anchor="middle" class="subtitle">Animated lines represent requests moving through the backend</text>
+</svg>
