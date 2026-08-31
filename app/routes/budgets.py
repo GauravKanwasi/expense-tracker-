@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..model import Budget, User
-from ..schemas import BudgetCreate, BudgetResponse, BudgetUpdate
+from ..schemas import BudgetCreate, BudgetResponse, BudgetUpdate, MessageResponse
 from ..security import get_current_user
 
 
@@ -38,7 +38,11 @@ def get_user_budget(db: Session, budget_id: int, user_id: int):
     return budget
 
 
-@router.post("/", response_model=BudgetResponse)
+@router.post(
+    "/",
+    response_model=BudgetResponse,
+    summary="Create a monthly budget"
+)
 def create_budget(
     budget_data: BudgetCreate,
     db: Session = Depends(get_db),
@@ -70,7 +74,11 @@ def create_budget(
     return budget_response(new_budget)
 
 
-@router.get("/", response_model=list[BudgetResponse])
+@router.get(
+    "/",
+    response_model=list[BudgetResponse],
+    summary="List monthly budgets"
+)
 def get_budgets(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -85,7 +93,11 @@ def get_budgets(
     return [budget_response(budget) for budget in budgets]
 
 
-@router.get("/{budget_id}", response_model=BudgetResponse)
+@router.get(
+    "/{budget_id}",
+    response_model=BudgetResponse,
+    summary="Get a monthly budget"
+)
 def get_budget(
     budget_id: int,
     db: Session = Depends(get_db),
@@ -96,7 +108,11 @@ def get_budget(
     return budget_response(budget)
 
 
-@router.put("/{budget_id}", response_model=BudgetResponse)
+@router.put(
+    "/{budget_id}",
+    response_model=BudgetResponse,
+    summary="Update a monthly budget"
+)
 def update_budget(
     budget_id: int,
     budget_data: BudgetUpdate,
@@ -128,7 +144,11 @@ def update_budget(
     return budget_response(budget)
 
 
-@router.delete("/{budget_id}")
+@router.delete(
+    "/{budget_id}",
+    response_model=MessageResponse,
+    summary="Delete a monthly budget"
+)
 def delete_budget(
     budget_id: int,
     db: Session = Depends(get_db),

@@ -1,11 +1,12 @@
 from datetime import date, datetime, time, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..model import Category, Transaction, User
+from ..schemas import AnalyticsSummaryResponse, CategoryTotalResponse
 from ..security import get_current_user
 
 
@@ -39,10 +40,20 @@ def date_filters(start_date: date | None, end_date: date | None):
     return filters
 
 
-@router.get("/summary")
+@router.get(
+    "/summary",
+    response_model=AnalyticsSummaryResponse,
+    summary="Get income, expenses, and balance"
+)
 def get_summary(
-    start_date: date | None = None,
-    end_date: date | None = None,
+    start_date: date | None = Query(
+        default=None,
+        description="Optional first date to include."
+    ),
+    end_date: date | None = Query(
+        default=None,
+        description="Optional last date to include."
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -82,10 +93,20 @@ def get_summary(
     }
 
 
-@router.get("/by-category")
+@router.get(
+    "/by-category",
+    response_model=list[CategoryTotalResponse],
+    summary="Get expenses grouped by category"
+)
 def get_totals_by_category(
-    start_date: date | None = None,
-    end_date: date | None = None,
+    start_date: date | None = Query(
+        default=None,
+        description="Optional first date to include."
+    ),
+    end_date: date | None = Query(
+        default=None,
+        description="Optional last date to include."
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):

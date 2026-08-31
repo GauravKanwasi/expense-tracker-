@@ -9,11 +9,20 @@ from .routes.categories import router as categories_router
 from .routes.transactions import router as transactions_router
 from .routes.budgets import router as budgets_router
 from .routes.analytics import router as analytics_router
+from .schemas import HealthResponse, MessageResponse
 
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Expense Tracker API")
+app = FastAPI(
+    title="Expense Tracker API",
+    version="1.0.0",
+    description=(
+        "A simple personal expense tracker API. "
+        "Authenticate first, then manage categories, transactions, "
+        "budgets, and analytics."
+    )
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -34,6 +43,21 @@ app.include_router(budgets_router)
 app.include_router(analytics_router)
 
 
-@app.get("/")
+@app.get(
+    "/",
+    response_model=MessageResponse,
+    tags=["system"],
+    summary="Check that the API is running"
+)
 def root():
     return {"message": "Expense Tracker API is running"}
+
+
+@app.get(
+    "/health",
+    response_model=HealthResponse,
+    tags=["system"],
+    summary="Check API health"
+)
+def health_check():
+    return {"status": "ok"}

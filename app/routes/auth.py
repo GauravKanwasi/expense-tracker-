@@ -4,13 +4,22 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..model import User
+from ..schemas import TokenResponse
 from ..security import verify_password, create_access_token
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
-@router.post("/login")
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    summary="Log in",
+    description=(
+        "Send the registered email in the OAuth2 `username` field "
+        "and the password in the `password` field."
+    )
+)
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)

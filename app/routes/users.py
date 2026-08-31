@@ -3,14 +3,18 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..model import User
-from ..schemas import UserCreate
+from ..schemas import UserCreate, UserResponse
 from ..security import hash_password, get_current_user
 
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-@router.post("/")
+@router.post(
+    "/",
+    response_model=UserResponse,
+    summary="Register a user"
+)
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
 
     existing_user = db.query(User).filter(User.email == user.email).first()
@@ -40,7 +44,11 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     }
 
 
-@router.get("/me")
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    summary="Get the current user"
+)
 def get_me(current_user: User = Depends(get_current_user)):
     return {
         "id": current_user.id,

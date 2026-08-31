@@ -6,7 +6,7 @@ from datetime import datetime
 
 
 class UserCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=100)
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
 
@@ -17,11 +17,11 @@ class UserLogin(BaseModel):
 
 
 class CategoryCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=100)
 
 
 class CategoryUpdate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=100)
 
 
 class TransactionType(str, Enum):
@@ -72,3 +72,39 @@ class BudgetUpdate(BudgetBase):
 class BudgetResponse(BudgetBase):
     id: int
     created_at: datetime | None = None
+
+
+class UserResponse(BaseModel):
+    id: int
+    name: str
+    email: EmailStr
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class CategoryResponse(BaseModel):
+    id: int
+    name: str
+
+
+class MessageResponse(BaseModel):
+    message: str
+
+
+class HealthResponse(BaseModel):
+    status: str
+
+
+class AnalyticsSummaryResponse(BaseModel):
+    total_income: float
+    total_expenses: float
+    balance: float
+
+
+class CategoryTotalResponse(BaseModel):
+    category_id: int
+    category_name: str
+    total: float

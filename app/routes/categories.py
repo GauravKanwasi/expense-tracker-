@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..model import Category, Transaction, User
-from ..schemas import CategoryCreate, CategoryUpdate
+from ..schemas import CategoryCreate, CategoryResponse, CategoryUpdate, MessageResponse
 from ..security import get_current_user
 
 
@@ -32,7 +32,11 @@ def get_user_category(db: Session, category_id: int, user_id: int):
     return category
 
 
-@router.post("/")
+@router.post(
+    "/",
+    response_model=CategoryResponse,
+    summary="Create a category"
+)
 def create_category(
     category: CategoryCreate,
     db: Session = Depends(get_db),
@@ -61,7 +65,11 @@ def create_category(
     return category_response(new_category)
 
 
-@router.get("/")
+@router.get(
+    "/",
+    response_model=list[CategoryResponse],
+    summary="List the user's categories"
+)
 def get_categories(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -73,7 +81,11 @@ def get_categories(
     return [category_response(category) for category in categories]
 
 
-@router.get("/{category_id}")
+@router.get(
+    "/{category_id}",
+    response_model=CategoryResponse,
+    summary="Get a category"
+)
 def get_category(
     category_id: int,
     db: Session = Depends(get_db),
@@ -83,7 +95,11 @@ def get_category(
     return category_response(category)
 
 
-@router.put("/{category_id}")
+@router.put(
+    "/{category_id}",
+    response_model=CategoryResponse,
+    summary="Update a category"
+)
 def update_category(
     category_id: int,
     category_data: CategoryUpdate,
@@ -112,7 +128,11 @@ def update_category(
     return category_response(category)
 
 
-@router.delete("/{category_id}")
+@router.delete(
+    "/{category_id}",
+    response_model=MessageResponse,
+    summary="Delete a category"
+)
 def delete_category(
     category_id: int,
     db: Session = Depends(get_db),

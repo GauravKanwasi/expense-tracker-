@@ -1,11 +1,16 @@
 from datetime import date, datetime, time, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..model import Transaction, Category, User
-from ..schemas import TransactionCreate, TransactionResponse, TransactionUpdate
+from ..schemas import (
+    MessageResponse,
+    TransactionCreate,
+    TransactionResponse,
+    TransactionUpdate
+)
 from ..security import get_current_user
 
 
@@ -42,7 +47,11 @@ def get_user_transaction(db: Session, transaction_id: int, user_id: int):
     return transaction
 
 
-@router.post("/", response_model=TransactionResponse)
+@router.post(
+    "/",
+    response_model=TransactionResponse,
+    summary="Create a transaction"
+)
 def create_transaction(
     transaction: TransactionCreate,
     db: Session = Depends(get_db),
@@ -75,14 +84,40 @@ def create_transaction(
     return transaction_response(new_transaction)
 
 
-@router.get("/", response_model=list[TransactionResponse])
+@router.get(
+    "/",
+    response_model=list[TransactionResponse],
+    summary="List transactions"
+)
 def get_transactions(
-    type: str | None = None,
-    category_id: int | None = None,
-    start_date: date | None = None,
-    end_date: date | None = None,
-    skip: int = 0,
-    limit: int = 100,
+    type: str | None = Query(
+        default=None,
+        description="Optional filter: income or expense."
+    ),
+    category_id: int | None = Query(
+        default=None,
+        gt=0,
+        description="Optional category ID filter."
+    ),
+    start_date: date | None = Query(
+        default=None,
+        description="Include transactions from this date."
+    ),
+    end_date: date | None = Query(
+        default=None,
+        description="Include transactions through this date."
+    ),
+    skip: int = Query(
+        default=0,
+        ge=0,
+        description="Number of transactions to skip."
+    ),
+    limit: int = Query(
+        default=100,
+        ge=1,
+        le=100,
+        description="Maximum number of transactions to return."
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -92,18 +127,6 @@ def get_transactions(
                 status_code=400,
                 detail="start_date must be before or equal to end_date"
             )
-
-    if skip < 0:
-        raise HTTPException(
-            status_code=400,
-            detail="skip cannot be negative"
-        )
-
-    if limit < 1 or limit > 100:
-        raise HTTPException(
-            status_code=400,
-            detail="limit must be between 1 and 100"
-        )
 
     query = db.query(Transaction).filter(
         Transaction.user_id == current_user.id
@@ -151,7 +174,11 @@ def get_transactions(
     return [transaction_response(item) for item in transactions]
 
 
-@router.get("/{transaction_id}", response_model=TransactionResponse)
+@router.get(
+    "/{transaction_id}",
+    response_model=TransactionResponse,
+    summary="Get a transaction"
+)
 def get_transaction(
     transaction_id: int,
     db: Session = Depends(get_db),
@@ -162,7 +189,11 @@ def get_transaction(
     return transaction_response(transaction)
 
 
-@router.put("/{transaction_id}", response_model=TransactionResponse)
+@router.put(
+    "/{transaction_id}",
+    response_model=TransactionResponse,
+    summary="Update a transaction"
+)
 def update_transaction(
     transaction_id: int,
     transaction_data: TransactionUpdate,
@@ -194,7 +225,11 @@ def update_transaction(
     return transaction_response(transaction)
 
 
-@router.delete("/{transaction_id}")
+@router.delete(
+    "/{transaction_id}",
+    response_model=MessageResponse,
+    summary="Delete a transaction"
+)
 def delete_transaction(
     transaction_id: int,
     db: Session = Depends(get_db),
