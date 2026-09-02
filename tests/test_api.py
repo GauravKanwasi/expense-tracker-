@@ -350,7 +350,12 @@ def test_analytics_summary_and_category_totals(client):
     assert summary.json() == {
         "total_income": 1000.0,
         "total_expenses": 250.0,
-        "balance": 750.0
+        "balance": 750.0,
+        "debt_borrowed": 0.0,
+        "debt_lent": 0.0,
+        "debt_interest": 0.0,
+        "investment_contributions": 0.0,
+        "investment_withdrawals": 0.0
     }
 
     category_totals = client.get(
@@ -365,3 +370,56 @@ def test_analytics_summary_and_category_totals(client):
             "total": 250.0
         }
     ]
+
+
+def test_debt_and_investment_transactions(client):
+    register_user(client)
+    headers = auth_headers(client)
+    category_id = create_category(client, headers, "Finance")
+
+    debt = client.post(
+        "/transactions/",
+        json={
+            "category_id": category_id,
+            "amount": 5000,
+            "type": "debt",
+            "debt_direction": "borrowed",
+            "interest_amount": 250,
+            "date": "2026-08-29T12:00:00"
+        },
+        headers=headers
+    )
+    assert debt.status_code == 200, debt.text
+    assert debt.json()["debt_direction"] == "borrowed"
+    assert debt.json()["interest_amount"] == 250
+
+    investment = client.post(
+        "/transactions/",
+        json={
+            "category_id": category_id,
+            "amount": 1500,
+            "type": "investment",
+            "investment_action": "contribution",
+            "date": "2026-08-29T12:00:00"
+        },
+        headers=headers
+    )
+    assert investment.status_code == 200, investment.text
+
+    summary = client.get("/analytics/summary", headers=headers)
+    assert summary.status_code == 200
+    assert summary.json()["debt_borrowed"] == 5000.0
+    assert summary.json()["debt_interest"] == 250.0
+    assert summary.json()["investment_contributions"] == 1500.0
+
+    missing_direction = client.post(
+        "/transactions/",
+        json={
+            "category_id": category_id,
+            "amount": 100,
+            "type": "debt",
+            "date": "2026-08-29T12:00:00"
+        },
+        headers=headers
+    )
+    assert missing_direction.status_code == 422

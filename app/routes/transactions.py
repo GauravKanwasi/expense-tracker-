@@ -27,6 +27,9 @@ def transaction_response(transaction: Transaction):
         "amount": transaction.amount,
         "type": transaction.type,
         "description": transaction.description,
+        "debt_direction": transaction.debt_direction,
+        "interest_amount": transaction.interest_amount,
+        "investment_action": transaction.investment_action,
         "date": transaction.date,
         "created_at": transaction.created_at
     }
@@ -74,6 +77,9 @@ def create_transaction(
         amount=transaction.amount,
         type=transaction.type.value,
         description=transaction.description,
+        debt_direction=transaction.debt_direction.value if transaction.debt_direction else None,
+        interest_amount=transaction.interest_amount,
+        investment_action=transaction.investment_action.value if transaction.investment_action else None,
         date=transaction.date
     )
 
@@ -92,7 +98,7 @@ def create_transaction(
 def get_transactions(
     type: str | None = Query(
         default=None,
-        description="Optional filter: income or expense."
+        description="Optional filter: income, expense, debt, or investment."
     ),
     category_id: int | None = Query(
         default=None,
@@ -133,10 +139,10 @@ def get_transactions(
     )
 
     if type is not None:
-        if type not in ["income", "expense"]:
+        if type not in ["income", "expense", "debt", "investment"]:
             raise HTTPException(
                 status_code=400,
-                detail="Type must be either income or expense"
+                detail="Type must be income, expense, debt, or investment"
             )
 
         query = query.filter(
@@ -217,6 +223,9 @@ def update_transaction(
     transaction.amount = transaction_data.amount
     transaction.type = transaction_data.type.value
     transaction.description = transaction_data.description
+    transaction.debt_direction = transaction_data.debt_direction.value if transaction_data.debt_direction else None
+    transaction.interest_amount = transaction_data.interest_amount
+    transaction.investment_action = transaction_data.investment_action.value if transaction_data.investment_action else None
     transaction.date = transaction_data.date
 
     db.commit()

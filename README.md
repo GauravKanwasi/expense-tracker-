@@ -4,7 +4,7 @@
   <p>
     <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12">
     <img src="https://img.shields.io/badge/FastAPI-REST_API-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI REST API">
-    <img src="https://img.shields.io/badge/tests-9_passing-2ea44f?style=for-the-badge" alt="Nine tests passing">
+    <img src="https://img.shields.io/badge/tests-10_passing-2ea44f?style=for-the-badge" alt="Ten tests passing">
   </p>
   <p>
     <a href="http://127.0.0.1:8000/docs">Open Swagger docs</a> |
@@ -14,7 +14,7 @@
     <tr>
       <td><strong>Backend</strong><br>Ready for frontend integration</td>
       <td><strong>Interactive docs</strong><br>Swagger UI at <code>/docs</code></td>
-      <td><strong>Tests</strong><br>9 passing</td>
+      <td><strong>Tests</strong><br>10 passing</td>
     </tr>
   </table>
 </div>
@@ -39,13 +39,14 @@ flowchart LR
 
 </details>
 
-Swagger at `/docs` is the interactive client for the backend until the React frontend is ready.
+The React/Vite frontend is now included in the `frontend/` folder. Swagger at `/docs` remains useful for API debugging and testing.
 
 ## Quick navigation
 
 - [Start here](#start-here)
 - [What works now](#what-works-now)
 - [Run locally](#run-locally)
+- [Run the frontend](#run-the-frontend)
 - [Use the interactive API docs](#use-the-interactive-api-docs)
 - [API endpoints](#api-endpoints)
 - [Frontend integration](#frontend-integration)
@@ -71,6 +72,9 @@ Once authorized, create a category before adding a transaction. The transaction 
 
 - JWT authentication with protected routes.
 - User registration and current-user lookup.
+- React/Vite dashboard with login, registration, transactions, categories, budgets, and analytics.
+- Separate debt and investment tracking with debt direction and interest.
+- Date presets and apply-on-demand filters keep the dashboard responsive.
 - User-owned categories with duplicate-name protection.
 - Transaction create, list, filter, update, and delete.
 - Transaction filters for type, category, date range, and pagination.
@@ -98,6 +102,18 @@ app/
 |   |-- budgets.py             Monthly budget CRUD
 |   |-- analytics.py           Summary and category analytics
 |   `-- inti.py                Unused placeholder kept for now
+migrations/
+`-- 0002_add_finance_fields.sql  Debt and investment fields
+frontend/
+|-- package.json              React and Vite scripts
+|-- package-lock.json         Locked frontend dependency tree
+|-- vite.config.js            Vite configuration
+|-- .env.example              Frontend API URL template
+`-- src/
+    |-- api.js                API client and token handling
+    |-- App.jsx               Dashboard and forms
+    |-- main.jsx              React entry point
+    `-- styles.css            Responsive application styles
 tests/
 |-- conftest.py                Isolated test database and test client
 `-- test_api.py                API behavior tests
@@ -144,6 +160,21 @@ Open these pages in your browser:
 - [Interactive Swagger docs](http://127.0.0.1:8000/docs)
 - [OpenAPI JSON](http://127.0.0.1:8000/openapi.json)
 - [Health check](http://127.0.0.1:8000/health)
+
+## Run the frontend
+
+Keep the FastAPI terminal running, then open a second PowerShell terminal:
+
+~~~powershell
+Set-Location "D:\class\Project\expense traker\frontend"
+npm.cmd install
+Copy-Item .env.example .env
+npm.cmd run dev
+~~~
+
+Open http://localhost:5173. The frontend reads <code>VITE_API_URL</code> from <code>frontend/.env</code> and defaults to <code>http://127.0.0.1:8000</code>.
+
+This environment uses <code>npm.cmd</code> because PowerShell may block the <code>npm.ps1</code> script. If regular <code>npm</code> works on your machine, it is also fine.
 
 ## Use the interactive API docs
 
@@ -203,7 +234,7 @@ All endpoints marked with a lock require a Bearer token.
 
 ## Frontend integration
 
-Use this small JavaScript example after the React frontend receives a token from <code>/auth/login</code>:
+The included dashboard uses this same API contract. This small JavaScript example shows the pattern for additional frontend screens:
 
 ~~~javascript
 const API_URL = "http://127.0.0.1:8000";
@@ -270,7 +301,39 @@ Use the returned category `id` when creating a transaction. Do not assume that F
 }
 ~~~
 
-`category_id` must belong to the logged-in user. `amount` must be greater than zero and `type` must be either `income` or `expense`.
+`category_id` must belong to the logged-in user. `amount` must be greater than zero. `type` can be `income`, `expense`, `debt`, or `investment`.
+
+### Debt transaction
+
+~~~json
+{
+  "category_id": 5,
+  "amount": 5000,
+  "type": "debt",
+  "debt_direction": "borrowed",
+  "interest_amount": 250,
+  "description": "Personal loan",
+  "date": "2026-08-29T12:00:00"
+}
+~~~
+
+Use `debt_direction` as `borrowed` or `lent`. Debt is tracked separately from the normal income-expense balance. `interest_amount` is optional and is reported separately.
+
+### Investment transaction
+
+~~~json
+{
+  "category_id": 5,
+  "amount": 1500,
+  "type": "investment",
+  "investment_action": "contribution",
+  "description": "Index fund contribution",
+  "date": "2026-08-29T12:00:00"
+}
+~~~
+
+Use `investment_action` as `contribution` or `withdrawal`. Investments are not counted as ordinary expenses.
+
 
 ### Create a monthly budget
 
@@ -283,6 +346,7 @@ Use the returned category `id` when creating a transaction. Do not assume that F
 ~~~
 
 Only one budget is allowed for each user, year, and month.
+Budgets remain positive spending limits; net debt can be negative when money lent out is greater than money borrowed.
 
 ### Filter transactions
 
@@ -315,6 +379,9 @@ Use this checklist while testing in Swagger:
 - [ ] Create at least two categories.
 - [ ] Add one income transaction.
 - [ ] Add one expense transaction.
+- [ ] Add one borrowed debt with an optional interest amount.
+- [ ] Add one lent debt and confirm net debt can be negative.
+- [ ] Add one investment contribution or withdrawal.
 - [ ] List transactions and try a filter.
 - [ ] Create a monthly budget.
 - [ ] Read the analytics summary.
@@ -359,14 +426,14 @@ The backend is in good shape for local development and frontend integration. Bef
 - [ ] Add logging and monitoring without logging passwords or tokens.
 
 `.env.example` contains placeholders only. Create a private `.env` file from it before running the API.
+The current PostgreSQL database also needs `migrations/0002_add_finance_fields.sql`; it has already been applied to the configured local database.
 
 ## Next steps
 
-1. Build the React or Vite frontend against the documented endpoints.
+1. Expand the frontend with editing, pagination controls, and richer charts.
 2. Store the JWT safely in the frontend and send it as `Authorization: Bearer <token>`.
-3. Build login, dashboard, transactions, categories, budgets, and analytics screens.
-4. Add Alembic migrations and fixed-precision money handling before deployment.
-5. Add deployment configuration, HTTPS, backups, rate limiting, and monitoring.
+3. Add Alembic migrations and fixed-precision money handling before deployment.
+4. Add deployment configuration, HTTPS, backups, rate limiting, and monitoring.
 
 ## License
 

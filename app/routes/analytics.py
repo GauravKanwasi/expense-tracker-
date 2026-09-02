@@ -86,10 +86,85 @@ def get_summary(
     total_income = float(totals.total_income or 0)
     total_expenses = float(totals.total_expenses or 0)
 
+    detail_totals = db.query(
+        func.coalesce(
+            func.sum(
+                case(
+                    (
+                        (Transaction.type == "debt")
+                        & (Transaction.debt_direction == "borrowed"),
+                        Transaction.amount
+                    ),
+                    else_=0
+                )
+            ),
+            0
+        ).label("debt_borrowed"),
+        func.coalesce(
+            func.sum(
+                case(
+                    (
+                        (Transaction.type == "debt")
+                        & (Transaction.debt_direction == "lent"),
+                        Transaction.amount
+                    ),
+                    else_=0
+                )
+            ),
+            0
+        ).label("debt_lent"),
+        func.coalesce(
+            func.sum(
+                case(
+                    (Transaction.type == "debt", Transaction.interest_amount),
+                    else_=0
+                )
+            ),
+            0
+        ).label("debt_interest"),
+        func.coalesce(
+            func.sum(
+                case(
+                    (
+                        (Transaction.type == "investment")
+                        & (Transaction.investment_action == "contribution"),
+                        Transaction.amount
+                    ),
+                    else_=0
+                )
+            ),
+            0
+        ).label("investment_contributions"),
+        func.coalesce(
+            func.sum(
+                case(
+                    (
+                        (Transaction.type == "investment")
+                        & (Transaction.investment_action == "withdrawal"),
+                        Transaction.amount
+                    ),
+                    else_=0
+                )
+            ),
+            0
+        ).label("investment_withdrawals")
+    ).filter(*filters).first()
+
+    debt_borrowed = float(detail_totals.debt_borrowed or 0)
+    debt_lent = float(detail_totals.debt_lent or 0)
+    debt_interest = float(detail_totals.debt_interest or 0)
+    investment_contributions = float(detail_totals.investment_contributions or 0)
+    investment_withdrawals = float(detail_totals.investment_withdrawals or 0)
+
     return {
         "total_income": total_income,
         "total_expenses": total_expenses,
-        "balance": total_income - total_expenses
+        "balance": total_income - total_expenses,
+        "debt_borrowed": debt_borrowed,
+        "debt_lent": debt_lent,
+        "debt_interest": debt_interest,
+        "investment_contributions": investment_contributions,
+        "investment_withdrawals": investment_withdrawals
     }
 
 

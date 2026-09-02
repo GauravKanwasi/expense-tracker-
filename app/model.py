@@ -67,6 +67,9 @@ class Transaction(Base):
     amount = Column(Float, nullable=False)
     type = Column(String(20), nullable=False)
     description = Column(String(255), nullable=True)
+    debt_direction = Column(String(20), nullable=True)
+    interest_amount = Column(Float, nullable=True)
+    investment_action = Column(String(20), nullable=True)
     date = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
