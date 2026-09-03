@@ -19,6 +19,9 @@ const emptyData = {
   categoryTotals: []
 };
 
+const STAT_ORDER_KEY = "ledgerly_stat_order";
+const STAT_IDS = ["balance", "income", "expenses", "debt", "invested"];
+
 function localDateTime() {
   const now = new Date();
   const offset = now.getTimezoneOffset() * 60000;
@@ -133,11 +136,28 @@ function App() {
   });
   const [activeSection, setActiveSection] = useState("overview");
   const [showTransactionForm, setShowTransactionForm] = useState(false);
+  const [statOrder, setStatOrder] = useState(() => {
+    try {
+      const savedOrder = JSON.parse(localStorage.getItem(STAT_ORDER_KEY));
+      return Array.isArray(savedOrder) &&
+        savedOrder.length === STAT_IDS.length &&
+        savedOrder.every((id) => STAT_IDS.includes(id))
+        ? savedOrder
+        : STAT_IDS;
+    } catch {
+      return STAT_IDS;
+    }
+  });
+  const [draggedStat, setDraggedStat] = useState("");
   const [loading, setLoading] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    localStorage.setItem(STAT_ORDER_KEY, JSON.stringify(statOrder));
+  }, [statOrder]);
 
   function showError(reason) {
     if (reason.status === 401) {
@@ -428,6 +448,42 @@ function App() {
     applyDateFilters(nextFilters);
   }
 
+  function handleStatDragStart(event, statId) {
+    setDraggedStat(statId);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", statId);
+  }
+
+  function handleStatDragOver(event) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }
+
+  function handleStatDrop(event, targetId) {
+    event.preventDefault();
+    const sourceId = draggedStat || event.dataTransfer.getData("text/plain");
+
+    if (!sourceId || sourceId === targetId) {
+      setDraggedStat("");
+      return;
+    }
+
+    setStatOrder((currentOrder) => {
+      const nextOrder = [...currentOrder];
+      const sourceIndex = nextOrder.indexOf(sourceId);
+      const targetIndex = nextOrder.indexOf(targetId);
+
+      if (sourceIndex === -1 || targetIndex === -1) {
+        return currentOrder;
+      }
+
+      nextOrder.splice(sourceIndex, 1);
+      nextOrder.splice(targetIndex, 0, sourceId);
+      return nextOrder;
+    });
+    setDraggedStat("");
+  }
+
   if (!token) {
     return (
       <AuthScreen
@@ -457,6 +513,46 @@ function App() {
     ...data.categoryTotals.map((item) => Number(item.total)),
     1
   );
+  const statCards = {
+    balance: {
+      label: "Current balance",
+      value: formatMoney(data.summary.balance),
+      note: "Income minus expenses",
+      tone: data.summary.balance >= 0 ? "green" : "red",
+      symbol: "="
+    },
+    income: {
+      label: "Total income",
+      value: formatMoney(data.summary.total_income),
+      note: "Money coming in",
+      tone: "blue",
+      symbol: "+"
+    },
+    expenses: {
+      label: "Total expenses",
+      value: formatMoney(data.summary.total_expenses),
+      note: "Money going out",
+      tone: "orange",
+      symbol: "−"
+    },
+    debt: {
+      label: "Net debt",
+      value: formatMoney(data.summary.debt_borrowed - data.summary.debt_lent),
+      note: "Borrowed minus lent",
+      tone: "purple",
+      symbol: "D"
+    },
+    invested: {
+      label: "Net invested",
+      value: formatMoney(
+        data.summary.investment_contributions -
+        data.summary.investment_withdrawals
+      ),
+      note: "Contributions minus withdrawals",
+      tone: "teal",
+      symbol: "I"
+    }
+  };
 
   return (
     <div className="app-shell">
@@ -598,45 +694,19 @@ function App() {
           </div>
         </section>
 
-        <section id="overview" className="stats-grid">
-          <StatCard
-            label="Current balance"
-            value={formatMoney(data.summary.balance)}
-            note="Income minus expenses"
-            tone={data.summary.balance >= 0 ? "green" : "red"}
-            symbol="="
-          />
-          <StatCard
-            label="Total income"
-            value={formatMoney(data.summary.total_income)}
-            note="Money coming in"
-            tone="blue"
-            symbol="+"
-          />
-          <StatCard
-            label="Total expenses"
-            value={formatMoney(data.summary.total_expenses)}
-            note="Money going out"
-            tone="orange"
-            symbol="−"
-          />
-          <StatCard
-            label="Net debt"
-            value={formatMoney(data.summary.debt_borrowed - data.summary.debt_lent)}
-            note="Borrowed minus lent"
-            tone="purple"
-            symbol="D"
-          />
-          <StatCard
-            label="Net invested"
-            value={formatMoney(
-              data.summary.investment_contributions -
-              data.summary.investment_withdrawals
-            )}
-            note="Contributions minus withdrawals"
-            tone="teal"
-            symbol="I"
-          />
+        <section id="overview" className="stats-grid" aria-label="Financial summary">
+          {statOrder.map((statId) => (
+            <StatCard
+              key={statId}
+              statId={statId}
+              draggedStat={draggedStat}
+              onDragStart={handleStatDragStart}
+              onDragOver={handleStatDragOver}
+              onDrop={handleStatDrop}
+              onDragEnd={() => setDraggedStat("")}
+              {...statCards[statId]}
+            />
+          ))}
         </section>
 
         <section className="content-grid">
@@ -1100,6 +1170,7 @@ function App() {
 
 function AuthScreen({ mode, form, error, loading, onModeChange, onChange, onSubmit }) {
   const isRegister = mode === "register";
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <main className="auth-page">
@@ -1173,18 +1244,28 @@ function AuthScreen({ mode, form, error, loading, onModeChange, onChange, onSubm
                 required
               />
             </label>
-            <label>
+            <label className="password-field">
               Password
-              <input
-                name="password"
-                type="password"
-                placeholder="At least 8 characters"
-                value={form.password}
-                onChange={onChange}
-                minLength="8"
-                maxLength="128"
-                required
-              />
+              <span className="password-input">
+                <input
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="At least 8 characters"
+                  value={form.password}
+                  onChange={onChange}
+                  minLength="8"
+                  maxLength="128"
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </span>
             </label>
             <button className="button button-primary button-full" disabled={loading}>
               {loading
@@ -1221,11 +1302,32 @@ function CardHeading({ eyebrow, title, action }) {
   );
 }
 
-function StatCard({ label, value, note, tone, symbol }) {
+function StatCard({
+  label,
+  value,
+  note,
+  tone,
+  symbol,
+  statId,
+  draggedStat,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd
+}) {
   return (
-    <article className={"stat-card " + tone}>
+    <article
+      className={"stat-card " + tone + (draggedStat === statId ? " dragging" : "")}
+      draggable
+      onDragStart={(event) => onDragStart(event, statId)}
+      onDragOver={onDragOver}
+      onDrop={(event) => onDrop(event, statId)}
+      onDragEnd={onDragEnd}
+      title="Drag to reorder this card"
+    >
       <div className="stat-top">
         <span className="eyebrow">{label}</span>
+        <span className="drag-handle" aria-hidden="true">⠿</span>
         <span className="stat-symbol">{symbol}</span>
       </div>
       <strong className="stat-value">{value}</strong>
