@@ -1,8 +1,12 @@
+from decimal import Decimal
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..model import Budget, User
+from ..model import Budget, Transaction, User
 from ..schemas import BudgetCreate, BudgetResponse, BudgetUpdate, MessageResponse
 from ..security import get_current_user
 
@@ -13,12 +17,38 @@ router = APIRouter(
 )
 
 
-def budget_response(budget: Budget):
+def month_bounds(year: int, month: int):
+    start = datetime(year, month, 1)
+    if month == 12:
+        end = datetime(year + 1, 1, 1)
+    else:
+        end = datetime(year, month + 1, 1)
+    return start, end
+
+
+def budget_response(db: Session, budget: Budget):
+    # Budget ka spent sirf us month ke expense transactions se calculate hota hai.
+    start, end = month_bounds(budget.year, budget.month)
+    spent = db.query(
+        func.coalesce(func.sum(Transaction.amount), 0)
+    ).filter(
+        Transaction.user_id == budget.user_id,
+        Transaction.type == "expense",
+        Transaction.date >= start,
+        Transaction.date < end
+    ).scalar()
+
+    amount = Decimal(str(budget.amount or 0))
+    spent = Decimal(str(spent or 0))
+
     return {
         "id": budget.id,
         "year": budget.year,
         "month": budget.month,
-        "amount": budget.amount,
+        "amount": amount,
+        "spent": spent,
+        "remaining": amount - spent,
+        "percentage": min(float((spent / amount) * 100), 100),
         "created_at": budget.created_at
     }
 
@@ -71,7 +101,7 @@ def create_budget(
     db.commit()
     db.refresh(new_budget)
 
-    return budget_response(new_budget)
+    return budget_response(db, new_budget)
 
 
 @router.get(
@@ -90,7 +120,7 @@ def get_budgets(
         Budget.month.desc()
     ).all()
 
-    return [budget_response(budget) for budget in budgets]
+    return [budget_response(db, budget) for budget in budgets]
 
 
 @router.get(
@@ -105,7 +135,7 @@ def get_budget(
 ):
     budget = get_user_budget(db, budget_id, current_user.id)
 
-    return budget_response(budget)
+    return budget_response(db, budget)
 
 
 @router.put(
@@ -141,7 +171,7 @@ def update_budget(
     db.commit()
     db.refresh(budget)
 
-    return budget_response(budget)
+    return budget_response(db, budget)
 
 
 @router.delete(

@@ -1,8 +1,41 @@
+from decimal import Decimal
 from enum import Enum
+from typing import Annotated
 
-from pydantic import BaseModel, EmailStr, Field, model_validator
+from pydantic import (
+    BaseModel,
+    EmailStr,
+    Field,
+    PlainSerializer,
+    model_validator
+)
 
 from datetime import datetime
+
+
+def serialize_money(value: Decimal) -> str:
+    # JSON number ko browser kabhi-kabhi round kar deta hai, isliye string bhejo.
+    formatted = format(value, "f")
+    return formatted if "." in formatted else formatted + ".00"
+
+
+MoneyAmount = Annotated[
+    Decimal,
+    Field(decimal_places=2),
+    PlainSerializer(
+        serialize_money,
+        return_type=str,
+        when_used="json"
+    )
+]
+PositiveMoney = Annotated[
+    Decimal,
+    Field(gt=Decimal("0"), max_digits=31, decimal_places=2)
+]
+NonNegativeMoney = Annotated[
+    Decimal,
+    Field(ge=Decimal("0"), max_digits=31, decimal_places=2)
+]
 
 
 class UserCreate(BaseModel):
@@ -43,12 +76,12 @@ class InvestmentAction(str, Enum):
 
 class TransactionBase(BaseModel):
     category_id: int
-    amount: float = Field(gt=0)
+    amount: PositiveMoney
     type: TransactionType
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=255)
     date: datetime
     debt_direction: DebtDirection | None = None
-    interest_amount: float | None = Field(default=None, ge=0)
+    interest_amount: NonNegativeMoney | None = None
     investment_action: InvestmentAction | None = None
 
     @model_validator(mode="after")
@@ -79,12 +112,12 @@ class TransactionUpdate(TransactionBase):
 class TransactionResponse(BaseModel):
     id: int
     category_id: int
-    amount: float
+    amount: MoneyAmount
     type: TransactionType
     description: str | None = None
     date: datetime
     debt_direction: DebtDirection | None = None
-    interest_amount: float | None = None
+    interest_amount: MoneyAmount | None = None
     investment_action: InvestmentAction | None = None
     created_at: datetime | None = None
 
@@ -92,7 +125,7 @@ class TransactionResponse(BaseModel):
 class BudgetBase(BaseModel):
     year: int = Field(ge=2000, le=2100)
     month: int = Field(ge=1, le=12)
-    amount: float = Field(gt=0)
+    amount: PositiveMoney
 
 
 class BudgetCreate(BudgetBase):
@@ -105,6 +138,10 @@ class BudgetUpdate(BudgetBase):
 
 class BudgetResponse(BudgetBase):
     id: int
+    amount: MoneyAmount
+    spent: MoneyAmount
+    remaining: MoneyAmount
+    percentage: float
     created_at: datetime | None = None
 
 
@@ -133,17 +170,22 @@ class HealthResponse(BaseModel):
 
 
 class AnalyticsSummaryResponse(BaseModel):
-    total_income: float
-    total_expenses: float
-    balance: float
-    debt_borrowed: float
-    debt_lent: float
-    debt_interest: float
-    investment_contributions: float
-    investment_withdrawals: float
+    total_income: MoneyAmount
+    total_expenses: MoneyAmount
+    balance: MoneyAmount
+    cash_balance: MoneyAmount
+    budget_total: MoneyAmount
+    budget_spent: MoneyAmount
+    budget_remaining: MoneyAmount
+    available_after_budgets: MoneyAmount
+    debt_borrowed: MoneyAmount
+    debt_lent: MoneyAmount
+    debt_interest: MoneyAmount
+    investment_contributions: MoneyAmount
+    investment_withdrawals: MoneyAmount
 
 
 class CategoryTotalResponse(BaseModel):
     category_id: int
     category_name: str
-    total: float
+    total: MoneyAmount

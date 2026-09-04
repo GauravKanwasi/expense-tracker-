@@ -1,7 +1,6 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap");
-
 :root {
-  font-family: "DM Sans", system-ui, sans-serif;
+  /* External font request hata diya: first paint ab network par depend nahi karega. */
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   color: #10201f;
   background: #eef3f1;
   font-synthesis: none;
@@ -118,7 +117,7 @@ h1,
 h2,
 h3,
 strong {
-  font-family: "Space Grotesk", "DM Sans", sans-serif;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
 .app-shell {
@@ -158,7 +157,7 @@ strong {
   border-radius: 12px;
   color: #06251f;
   background: linear-gradient(145deg, #6ee7b7, #10b981);
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Segoe UI", system-ui, sans-serif;
   font-size: 1.35rem;
   font-weight: 700;
   box-shadow: 0 8px 20px rgba(16, 185, 129, 0.2);
@@ -339,6 +338,10 @@ strong {
   gap: 0.6rem;
 }
 
+.transaction-action-border {
+  line-height: 0;
+}
+
 .button {
   border: 0;
   border-radius: 10px;
@@ -405,7 +408,7 @@ strong {
   border-radius: 50%;
   color: #0c5d53;
   background: #b9f3d9;
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Segoe UI", system-ui, sans-serif;
   font-size: 0.76rem;
   font-weight: 700;
   box-shadow: 0 3px 12px rgba(15, 118, 110, 0.12);
@@ -474,7 +477,7 @@ strong {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 1rem;
 }
@@ -506,6 +509,10 @@ strong {
 
 .stat-card:nth-child(5) {
   animation-delay: 240ms;
+}
+
+.stat-card:nth-child(6) {
+  animation-delay: 300ms;
 }
 
 @media (hover: hover) {
@@ -611,8 +618,12 @@ strong {
 .stat-value {
   display: block;
   margin: 1.4rem 0 0.35rem;
-  font-size: clamp(1.55rem, 3vw, 2.15rem);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: clamp(1.2rem, 2.2vw, 2.15rem);
+  line-height: 1.08;
   letter-spacing: -0.06em;
+  font-variant-numeric: tabular-nums;
 }
 
 .stat-note {
@@ -759,6 +770,10 @@ strong {
   font-size: 0.78rem;
 }
 
+.form-row .amount-field {
+  min-width: 0;
+}
+
 .budget-list {
   display: grid;
   gap: 0.95rem;
@@ -785,6 +800,11 @@ strong {
 .budget-row small {
   color: #84928e;
   font-size: 0.7rem;
+}
+
+.budget-row small.budget-over {
+  color: #bd4d55;
+  font-weight: 700;
 }
 
 .budget-progress {
@@ -843,6 +863,35 @@ strong {
   color: #53635f;
   font-size: 0.8rem;
   transition: background 180ms ease, transform 180ms var(--ease-out);
+}
+
+.transaction-row > * {
+  min-width: 0;
+}
+
+.transaction-animated-list .item {
+  margin-bottom: 0;
+  border-radius: 10px;
+}
+
+.transaction-animated-list .item.selected {
+  background: #fbfdfc;
+}
+
+.transaction-animated-list .transaction-row {
+  animation: none;
+}
+
+.transaction-list-loading {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  color: #899691;
+  font-size: 0.78rem;
+}
+
+.transaction-animated-list .transaction-animated-item:last-child .transaction-row {
+  border-bottom: 0;
 }
 
 @media (hover: hover) {
@@ -928,6 +977,8 @@ strong {
 
 .align-right,
 .transaction-amount {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   text-align: right;
 }
 
@@ -1260,6 +1311,10 @@ strong {
   padding-left: 2rem;
 }
 
+.modal-form .input-prefix {
+  width: min(100%, 280px);
+}
+
 .auth-page {
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(420px, 0.92fr);
@@ -1277,9 +1332,28 @@ strong {
   background: #0b1d1b;
 }
 
+.auth-motion-background {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+.auth-motion-fallback {
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 50% 45%, rgba(16, 185, 129, 0.24), transparent 68%);
+}
+
+.auth-showcase > .showcase-brand {
+  position: relative;
+  z-index: 3;
+}
+
 .showcase-brand strong {
   color: #f5fffb;
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Segoe UI", system-ui, sans-serif;
   font-size: 1.15rem;
 }
 
@@ -1584,6 +1658,14 @@ strong {
 
   .topbar-actions .button {
     flex: 1;
+  }
+
+  .topbar-actions .transaction-action-border {
+    flex: 1;
+  }
+
+  .topbar-actions .transaction-action-border .button {
+    width: 100%;
   }
 
   .avatar {

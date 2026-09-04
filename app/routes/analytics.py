@@ -1,19 +1,27 @@
+from decimal import Decimal
 from datetime import date, datetime, time, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import case, func
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..model import Category, Transaction, User
+from ..model import Budget, Category, Transaction, User
 from ..schemas import AnalyticsSummaryResponse, CategoryTotalResponse
 from ..security import get_current_user
+from .budgets import month_bounds
 
 
 router = APIRouter(
     prefix="/analytics",
     tags=["analytics"]
 )
+
+ZERO = Decimal("0")
+
+
+def decimal_value(value):
+    return value if isinstance(value, Decimal) else Decimal(str(value or 0))
 
 
 def date_filters(start_date: date | None, end_date: date | None):
@@ -83,8 +91,8 @@ def get_summary(
         ).label("total_expenses")
     ).filter(*filters).first()
 
-    total_income = float(totals.total_income or 0)
-    total_expenses = float(totals.total_expenses or 0)
+    total_income = decimal_value(totals.total_income)
+    total_expenses = decimal_value(totals.total_expenses)
 
     detail_totals = db.query(
         func.coalesce(
@@ -150,16 +158,84 @@ def get_summary(
         ).label("investment_withdrawals")
     ).filter(*filters).first()
 
-    debt_borrowed = float(detail_totals.debt_borrowed or 0)
-    debt_lent = float(detail_totals.debt_lent or 0)
-    debt_interest = float(detail_totals.debt_interest or 0)
-    investment_contributions = float(detail_totals.investment_contributions or 0)
-    investment_withdrawals = float(detail_totals.investment_withdrawals or 0)
+    debt_borrowed = decimal_value(detail_totals.debt_borrowed)
+    debt_lent = decimal_value(detail_totals.debt_lent)
+    debt_interest = decimal_value(detail_totals.debt_interest)
+    investment_contributions = decimal_value(detail_totals.investment_contributions)
+    investment_withdrawals = decimal_value(detail_totals.investment_withdrawals)
+
+    budget_query = db.query(Budget).filter(
+        Budget.user_id == current_user.id
+    )
+
+    if start_date is not None:
+        budget_query = budget_query.filter(
+            or_(
+                Budget.year > start_date.year,
+                and_(
+                    Budget.year == start_date.year,
+                    Budget.month >= start_date.month
+                )
+            )
+        )
+
+    if end_date is not None:
+        budget_query = budget_query.filter(
+            or_(
+                Budget.year < end_date.year,
+                and_(
+                    Budget.year == end_date.year,
+                    Budget.month <= end_date.month
+                )
+            )
+        )
+
+    budgets = budget_query.all()
+    budget_total = sum(
+        (decimal_value(budget.amount) for budget in budgets),
+        ZERO
+    )
+    budget_month_filters = []
+
+    for budget in budgets:
+        month_start, month_end = month_bounds(budget.year, budget.month)
+        budget_month_filters.append(
+            and_(
+                Transaction.date >= month_start,
+                Transaction.date < month_end
+            )
+        )
+
+    if budget_month_filters:
+        budget_spent = db.query(
+            func.coalesce(func.sum(Transaction.amount), 0)
+        ).filter(
+            *filters,
+            Transaction.type == "expense",
+            or_(*budget_month_filters)
+        ).scalar()
+        budget_spent = decimal_value(budget_spent)
+    else:
+        budget_spent = ZERO
+
+    # Budget planning hai; ise cash balance se alag rakhkar available amount nikalo.
+    budget_remaining = budget_total - budget_spent
+    # Debt aur investments ko unke cash-flow direction ke hisaab se include karo.
+    cash_balance = (
+        total_income - total_expenses
+        + debt_borrowed - debt_lent
+        - investment_contributions + investment_withdrawals
+    )
 
     return {
         "total_income": total_income,
         "total_expenses": total_expenses,
         "balance": total_income - total_expenses,
+        "cash_balance": cash_balance,
+        "budget_total": budget_total,
+        "budget_spent": budget_spent,
+        "budget_remaining": budget_remaining,
+        "available_after_budgets": cash_balance - budget_remaining,
         "debt_borrowed": debt_borrowed,
         "debt_lent": debt_lent,
         "debt_interest": debt_interest,
@@ -212,7 +288,7 @@ def get_totals_by_category(
         {
             "category_id": category_id,
             "category_name": category_name,
-            "total": float(total)
+            "total": decimal_value(total)
         }
         for category_id, category_name, total in totals
     ]

@@ -1,0 +1,90 @@
+.scroll-list-container {
+  position: relative;
+  width: 100%;
+}
+
+.scroll-list {
+  max-height: 420px;
+  overflow-y: auto;
+  outline: 0;
+  padding: 0.15rem 0.25rem 0.35rem 0;
+  scrollbar-color: #b7d4ca transparent;
+  scrollbar-width: thin;
+}
+
+.scroll-list:focus-visible {
+  border-radius: 10px;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+}
+
+.scroll-list::-webkit-scrollbar {
+  width: 7px;
+}
+
+.scroll-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #b7d4ca;
+}
+
+.scroll-list::-webkit-scrollbar-thumb:hover {
+  background: #8eb8a9;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.animated-list-entry {
+  margin-bottom: 0.35rem;
+  cursor: pointer;
+}
+
+.animated-list-entry:last-child {
+  margin-bottom: 0;
+}
+
+.item {
+  border-radius: 10px;
+}
+
+.item-text {
+  margin: 0;
+  color: var(--ink, #10201f);
+}
+
+.top-gradient,
+.bottom-gradient {
+  position: absolute;
+  right: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+  transition: opacity 240ms ease;
+}
+
+.top-gradient {
+  top: 0;
+  height: 28px;
+  background: linear-gradient(to bottom, #ffffff, transparent);
+}
+
+.bottom-gradient {
+  bottom: 0;
+  height: 46px;
+  background: linear-gradient(to top, #ffffff, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-list {
+    scroll-behavior: auto;
+  }
+}

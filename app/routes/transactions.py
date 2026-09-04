@@ -21,6 +21,7 @@ router = APIRouter(
 
 
 def transaction_response(transaction: Transaction):
+    # Response helper se create, list, get aur update ka shape same rehta hai.
     return {
         "id": transaction.id,
         "category_id": transaction.category_id,

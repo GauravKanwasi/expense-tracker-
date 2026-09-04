@@ -28,6 +28,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 def hash_password(password: str) -> str:
+    # Plain password kabhi database mein store nahi hota, sirf secure hash hota hai.
     return password_hasher.hash(password)
 
 
@@ -63,6 +64,7 @@ def get_current_user(
     )
 
     try:
+        # Token se sirf user id padho; har protected route ownership dobara check karta hai.
         payload = jwt.decode(
             token,
             JWT_SECRET_KEY,

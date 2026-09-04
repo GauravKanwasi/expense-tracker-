@@ -1,12 +1,22 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import * as api from "./api";
 import "./styles.css";
+
+// Heavy animation files ko baad mein load karte hain, taaki first screen jaldi paint ho.
+const AnimatedList = lazy(() => import("./components/AnimatedList"));
+const ElectricBorder = lazy(() => import("./components/ElectricBorder"));
+const GridMotion = lazy(() => import("./components/GridMotion"));
 
 const emptyData = {
   summary: {
     total_income: 0,
     total_expenses: 0,
     balance: 0,
+    cash_balance: 0,
+    budget_total: 0,
+    budget_spent: 0,
+    budget_remaining: 0,
+    available_after_budgets: 0,
     debt_borrowed: 0,
     debt_lent: 0,
     debt_interest: 0,
@@ -20,7 +30,7 @@ const emptyData = {
 };
 
 const STAT_ORDER_KEY = "ledgerly_stat_order";
-const STAT_IDS = ["balance", "income", "expenses", "debt", "invested"];
+const STAT_IDS = ["balance", "income", "expenses", "available", "debt", "invested"];
 
 function localDateTime() {
   const now = new Date();
@@ -47,11 +57,64 @@ function blankTransaction(categoryId = "") {
 }
 
 function formatMoney(value) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 2
-  }).format(Number(value) || 0);
+  const cents = moneyToCents(value);
+  const negative = cents < 0n;
+  const absolute = negative ? -cents : cents;
+  const whole = (absolute / 100n).toString();
+  const fraction = (absolute % 100n).toString().padStart(2, "0");
+  const groupedWhole = whole.length <= 3
+    ? whole
+    : whole.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ",") +
+      "," + whole.slice(-3);
+
+  return `${negative ? "-" : ""}₹${groupedWhole}.${fraction}`;
+}
+
+function moneyToCents(value) {
+  const text = String(value ?? "0").trim().replace(/,/g, "");
+  const negative = text.startsWith("-");
+  const unsigned = negative ? text.slice(1) : text;
+  const [wholePart = "0", fractionPart = ""] = unsigned.split(".");
+  const whole = wholePart.replace(/\D/g, "") || "0";
+  const fraction = fractionPart.replace(/\D/g, "").padEnd(2, "0").slice(0, 2);
+  const cents = BigInt(whole) * 100n + BigInt(fraction || "0");
+
+  return negative ? -cents : cents;
+}
+
+function centsToMoney(cents) {
+  const value = BigInt(cents);
+  const negative = value < 0n;
+  const absolute = negative ? -value : value;
+  return `${negative ? "-" : ""}${absolute / 100n}.${(absolute % 100n)
+    .toString()
+    .padStart(2, "0")}`;
+}
+
+function subtractMoney(left, right) {
+  return centsToMoney(moneyToCents(left) - moneyToCents(right));
+}
+
+function isNegativeMoney(value) {
+  return moneyToCents(value) < 0n;
+}
+
+function isValidMoneyInput(value, allowZero = false) {
+  const cents = moneyToCents(value);
+  return /^\d{1,29}(\.\d{1,2})?$/.test(value) &&
+    (allowZero ? cents >= 0n : cents > 0n);
+}
+
+function sanitizeMoneyInput(value) {
+  const cleaned = value.replace(/[^\d.]/g, "");
+  const [wholePart = "", ...fractionParts] = cleaned.split(".");
+  const whole = wholePart.slice(0, 29);
+
+  if (!fractionParts.length) {
+    return whole;
+  }
+
+  return `${whole}.${fractionParts.join("").slice(0, 2)}`;
 }
 
 function formatDate(value) {
@@ -194,27 +257,33 @@ function App() {
       end_date: filters.end_date
     };
 
+    // Core data pehle dikhao; charts aur budgets background mein aa sakte hain.
+    let pendingLoads = 2;
+    const finishLoad = () => {
+      pendingLoads -= 1;
+      if (!cancelled && pendingLoads === 0) {
+        setLoading(false);
+      }
+    };
+
     Promise.all([
       api.getCurrentUser(),
       api.getCategories(),
       api.getTransactions(query),
-      api.getSummary(query),
-      api.getCategoryTotals(query),
-      api.getBudgets()
+      api.getSummary(query)
     ])
-      .then(([currentUser, categories, transactions, summary, categoryTotals, budgets]) => {
+      .then(([currentUser, categories, transactions, summary]) => {
         if (cancelled) {
           return;
         }
 
         setUser(currentUser);
-        setData({
+        setData((current) => ({
+          ...current,
           summary,
           categories,
-          transactions,
-          budgets,
-          categoryTotals
-        });
+          transactions
+        }));
         setTransactionForm((current) => (
           current.category_id || !categories.length
             ? current
@@ -226,11 +295,29 @@ function App() {
           showError(reason);
         }
       })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
+      .finally(finishLoad);
+
+    Promise.all([
+      api.getCategoryTotals(query),
+      api.getBudgets()
+    ])
+      .then(([categoryTotals, budgets]) => {
+        if (cancelled) {
+          return;
         }
-      });
+
+        setData((current) => ({
+          ...current,
+          budgets,
+          categoryTotals
+        }));
+      })
+      .catch((reason) => {
+        if (!cancelled) {
+          showError(reason);
+        }
+      })
+      .finally(finishLoad);
 
     return () => {
       cancelled = true;
@@ -273,20 +360,34 @@ function App() {
       return;
     }
 
+    if (!isValidMoneyInput(transactionForm.amount)) {
+      setError("Enter an amount greater than zero with up to 29 digits and 2 decimals.");
+      return;
+    }
+
+    if (
+      transactionForm.type === "debt" &&
+      transactionForm.interest_amount &&
+      !isValidMoneyInput(transactionForm.interest_amount, true)
+    ) {
+      setError("Enter a valid interest amount or leave it empty.");
+      return;
+    }
+
     setActionLoading("transaction");
     setError("");
 
     try {
       await api.createTransaction({
         category_id: Number(transactionForm.category_id),
-        amount: Number(transactionForm.amount),
+        amount: transactionForm.amount,
         type: transactionForm.type,
         debt_direction: transactionForm.type === "debt"
           ? transactionForm.debt_direction
           : null,
         interest_amount: transactionForm.type === "debt" &&
           transactionForm.interest_amount !== ""
-          ? Number(transactionForm.interest_amount)
+          ? transactionForm.interest_amount
           : null,
         investment_action: transactionForm.type === "investment"
           ? transactionForm.investment_action
@@ -334,6 +435,12 @@ function App() {
 
   async function handleBudgetSubmit(event) {
     event.preventDefault();
+
+    if (!isValidMoneyInput(budgetForm.amount)) {
+      setError("Enter a budget greater than zero with up to 29 digits and 2 decimals.");
+      return;
+    }
+
     setActionLoading("budget");
     setError("");
 
@@ -341,7 +448,7 @@ function App() {
       await api.createBudget({
         year: Number(budgetForm.year),
         month: Number(budgetForm.month),
-        amount: Number(budgetForm.amount)
+        amount: budgetForm.amount
       });
 
       setBudgetForm((current) => ({ ...current, amount: "" }));
@@ -516,9 +623,9 @@ function App() {
   const statCards = {
     balance: {
       label: "Current balance",
-      value: formatMoney(data.summary.balance),
-      note: "Income minus expenses",
-      tone: data.summary.balance >= 0 ? "green" : "red",
+      value: formatMoney(data.summary.cash_balance),
+      note: "Cash after all movements",
+      tone: isNegativeMoney(data.summary.cash_balance) ? "red" : "green",
       symbol: "="
     },
     income: {
@@ -535,9 +642,18 @@ function App() {
       tone: "orange",
       symbol: "−"
     },
+    available: {
+      label: "Available after plans",
+      value: formatMoney(data.summary.available_after_budgets),
+      note: "Cash minus unspent budgets",
+      tone: isNegativeMoney(data.summary.available_after_budgets) ? "red" : "green",
+      symbol: "P"
+    },
     debt: {
       label: "Net debt",
-      value: formatMoney(data.summary.debt_borrowed - data.summary.debt_lent),
+      value: formatMoney(
+        subtractMoney(data.summary.debt_borrowed, data.summary.debt_lent)
+      ),
       note: "Borrowed minus lent",
       tone: "purple",
       symbol: "D"
@@ -545,8 +661,10 @@ function App() {
     invested: {
       label: "Net invested",
       value: formatMoney(
-        data.summary.investment_contributions -
-        data.summary.investment_withdrawals
+        subtractMoney(
+          data.summary.investment_contributions,
+          data.summary.investment_withdrawals
+        )
       ),
       note: "Contributions minus withdrawals",
       tone: "teal",
@@ -615,12 +733,32 @@ function App() {
             >
               {loading ? "Refreshing..." : "Refresh"}
             </button>
-            <button
-              className="button button-primary"
-              onClick={() => setShowTransactionForm(true)}
+            <Suspense
+              fallback={
+                <button
+                  className="button button-primary"
+                  onClick={() => setShowTransactionForm(true)}
+                >
+                  <span className="button-plus">+</span> Add transaction
+                </button>
+              }
             >
-              <span className="button-plus">+</span> Add transaction
-            </button>
+              <ElectricBorder
+                color="#6ee7b7"
+                speed={0.75}
+                chaos={0.05}
+                thickness={1.5}
+                borderRadius={10}
+                className="transaction-action-border"
+              >
+                <button
+                  className="button button-primary"
+                  onClick={() => setShowTransactionForm(true)}
+                >
+                  <span className="button-plus">+</span> Add transaction
+                </button>
+              </ElectricBorder>
+            </Suspense>
             <div className="avatar" title={user?.email}>
               {initials(user?.name)}
             </div>
@@ -781,14 +919,14 @@ function App() {
                 <label className="amount-field">
                   Amount
                   <input
-                    type="number"
-                    min="1"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
+                    maxLength="32"
                     placeholder="10,000"
                     value={budgetForm.amount}
                     onChange={(event) => setBudgetForm({
                       ...budgetForm,
-                      amount: event.target.value
+                      amount: sanitizeMoneyInput(event.target.value)
                     })}
                     required
                   />
@@ -804,17 +942,10 @@ function App() {
 
             <div className="budget-list">
               {data.budgets.slice(0, 3).map((budget) => {
-                const spent = data.transactions
-                  .filter((transaction) => {
-                    const transactionDate = new Date(transaction.date);
-                    return (
-                      transaction.type === "expense" &&
-                      transactionDate.getFullYear() === budget.year &&
-                      transactionDate.getMonth() + 1 === budget.month
-                    );
-                  })
-                  .reduce((total, transaction) => total + Number(transaction.amount), 0);
-                const percentage = Math.min((spent / budget.amount) * 100, 100);
+                const spent = budget.spent ?? "0";
+                const remaining = budget.remaining ?? "0";
+                const percentage = Number(budget.percentage) || 0;
+                const overBudget = isNegativeMoney(remaining);
 
                 return (
                   <div className="budget-row" key={budget.id}>
@@ -836,7 +967,9 @@ function App() {
                         style={{ width: percentage + "%" }}
                       />
                     </div>
-                    <small>{formatMoney(spent)} spent</small>
+                    <small className={overBudget ? "budget-over" : ""}>
+                      {formatMoney(spent)} spent · {formatMoney(overBudget ? subtractMoney("0", remaining) : remaining)} {overBudget ? "over" : "remaining"}
+                    </small>
                   </div>
                 );
               })}
@@ -862,8 +995,16 @@ function App() {
                 <span className="align-right">Amount</span>
                 <span />
               </div>
-              {data.transactions.map((transaction) => (
-                <div className="transaction-row" key={transaction.id}>
+              <Suspense fallback={<div className="transaction-list-loading">Loading activity...</div>}>
+                <AnimatedList
+                  items={data.transactions}
+                  className="transaction-animated-list"
+                  itemClassName="transaction-animated-item"
+                  showGradients={true}
+                  enableArrowNavigation={true}
+                  displayScrollbar={true}
+                  renderItem={(transaction) => (
+                  <div className="transaction-row" key={transaction.id}>
                   <div className="transaction-name">
                     <span className={"transaction-icon " + transaction.type}>
                       {transactionSign(transaction)}
@@ -889,13 +1030,15 @@ function App() {
                   >
                     ×
                   </button>
-                </div>
-              ))}
+                  </div>
+                )}
+                />
+              </Suspense>
             </div>
           ) : (
             <EmptyState
               title="Your activity will appear here"
-              copy="Add your first income or expense to start your ledger."
+              copy="Add your first income, expense, debt, or investment to start your ledger."
               action={
                 <button
                   className="button button-primary"
@@ -1029,14 +1172,14 @@ function App() {
                   <div className="input-prefix">
                     <span>₹</span>
                     <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
+                      maxLength="32"
                       placeholder="0.00"
                       value={transactionForm.amount}
                       onChange={(event) => setTransactionForm({
                         ...transactionForm,
-                        amount: event.target.value
+                        amount: sanitizeMoneyInput(event.target.value)
                       })}
                       required
                     />
@@ -1062,14 +1205,14 @@ function App() {
                       <div className="input-prefix">
                         <span>Rs</span>
                         <input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                          type="text"
+                          inputMode="decimal"
+                          maxLength="32"
                           placeholder="Optional"
                           value={transactionForm.interest_amount}
                           onChange={(event) => setTransactionForm({
                             ...transactionForm,
-                            interest_amount: event.target.value
+                            interest_amount: sanitizeMoneyInput(event.target.value)
                           })}
                         />
                       </div>
@@ -1175,6 +1318,14 @@ function AuthScreen({ mode, form, error, loading, onModeChange, onChange, onSubm
   return (
     <main className="auth-page">
       <section className="auth-showcase">
+        <div className="auth-motion-background">
+          <Suspense fallback={<div className="auth-motion-fallback" aria-hidden="true" />}>
+            <GridMotion
+              items={["Income", "Budget", "Debt", "Invest", "Balance", "Plan"]}
+              gradientColor="rgba(16, 185, 129, 0.24)"
+            />
+          </Suspense>
+        </div>
         <div className="showcase-brand">
           <span className="brand-mark">L</span>
           <strong>Ledgerly</strong>

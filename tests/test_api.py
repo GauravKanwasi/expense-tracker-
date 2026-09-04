@@ -233,7 +233,7 @@ def test_transaction_crud_filters_and_pagination(client):
         headers=headers
     )
     assert updated.status_code == 200
-    assert updated.json()["amount"] == 300
+    assert updated.json()["amount"] == "300.00"
 
     deleted = client.delete(
         f"/transactions/{expense['id']}",
@@ -284,6 +284,27 @@ def test_transaction_validation(client):
     assert invalid_filter.status_code == 400
 
 
+def test_large_money_values_are_preserved(client):
+    register_user(client)
+    headers = auth_headers(client)
+    category_id = create_category(client, headers, "Large amounts")
+    maximum_amount = "99999999999999999999999999999.99"
+
+    response = client.post(
+        "/transactions/",
+        json={
+            "category_id": category_id,
+            "amount": maximum_amount,
+            "type": "income",
+            "date": "2026-08-29T12:00:00"
+        },
+        headers=headers
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["amount"] == maximum_amount
+
+
 def test_budget_crud_and_duplicate_protection(client):
     register_user(client)
     headers = auth_headers(client)
@@ -295,6 +316,9 @@ def test_budget_crud_and_duplicate_protection(client):
     )
     assert created.status_code == 200
     budget_id = created.json()["id"]
+    assert created.json()["spent"] == "0.00"
+    assert created.json()["remaining"] == "10000.00"
+    assert created.json()["percentage"] == 0.0
 
     register_user(client, email="second@example.com")
     second_headers = auth_headers(client, email="second@example.com")
@@ -348,14 +372,19 @@ def test_analytics_summary_and_category_totals(client):
     )
     assert summary.status_code == 200
     assert summary.json() == {
-        "total_income": 1000.0,
-        "total_expenses": 250.0,
-        "balance": 750.0,
-        "debt_borrowed": 0.0,
-        "debt_lent": 0.0,
-        "debt_interest": 0.0,
-        "investment_contributions": 0.0,
-        "investment_withdrawals": 0.0
+        "total_income": "1000.00",
+        "total_expenses": "250.00",
+        "balance": "750.00",
+        "cash_balance": "750.00",
+        "budget_total": "0.00",
+        "budget_spent": "0.00",
+        "budget_remaining": "0.00",
+        "available_after_budgets": "750.00",
+        "debt_borrowed": "0.00",
+        "debt_lent": "0.00",
+        "debt_interest": "0.00",
+        "investment_contributions": "0.00",
+        "investment_withdrawals": "0.00"
     }
 
     category_totals = client.get(
@@ -367,7 +396,7 @@ def test_analytics_summary_and_category_totals(client):
         {
             "category_id": food_id,
             "category_name": "Food",
-            "total": 250.0
+            "total": "250.00"
         }
     ]
 
@@ -391,7 +420,7 @@ def test_debt_and_investment_transactions(client):
     )
     assert debt.status_code == 200, debt.text
     assert debt.json()["debt_direction"] == "borrowed"
-    assert debt.json()["interest_amount"] == 250
+    assert debt.json()["interest_amount"] == "250.00"
 
     investment = client.post(
         "/transactions/",
@@ -408,9 +437,10 @@ def test_debt_and_investment_transactions(client):
 
     summary = client.get("/analytics/summary", headers=headers)
     assert summary.status_code == 200
-    assert summary.json()["debt_borrowed"] == 5000.0
-    assert summary.json()["debt_interest"] == 250.0
-    assert summary.json()["investment_contributions"] == 1500.0
+    assert summary.json()["debt_borrowed"] == "5000.00"
+    assert summary.json()["debt_interest"] == "250.00"
+    assert summary.json()["investment_contributions"] == "1500.00"
+    assert summary.json()["cash_balance"] == "3500.00"
 
     missing_direction = client.post(
         "/transactions/",
@@ -423,3 +453,40 @@ def test_debt_and_investment_transactions(client):
         headers=headers
     )
     assert missing_direction.status_code == 422
+
+
+def test_budget_spending_and_available_cash(client):
+    register_user(client)
+    headers = auth_headers(client)
+    category_id = create_category(client, headers, "Home")
+
+    created = client.post(
+        "/budgets/",
+        json={"year": 2026, "month": 8, "amount": 1000},
+        headers=headers
+    )
+    assert created.status_code == 200
+
+    create_transaction(
+        client, headers, category_id, 250, "expense", "2026-08-15T12:00:00"
+    )
+    create_transaction(
+        client, headers, category_id, 1000, "income", "2026-08-01T12:00:00"
+    )
+
+    budgets = client.get("/budgets/", headers=headers)
+    assert budgets.status_code == 200
+    assert budgets.json()[0]["spent"] == "250.00"
+    assert budgets.json()[0]["remaining"] == "750.00"
+    assert budgets.json()[0]["percentage"] == 25.0
+
+    summary = client.get(
+        "/analytics/summary?start_date=2026-08-01&end_date=2026-08-31",
+        headers=headers
+    )
+    assert summary.status_code == 200
+    assert summary.json()["cash_balance"] == "750.00"
+    assert summary.json()["budget_total"] == "1000.00"
+    assert summary.json()["budget_spent"] == "250.00"
+    assert summary.json()["budget_remaining"] == "750.00"
+    assert summary.json()["available_after_budgets"] == "0.00"

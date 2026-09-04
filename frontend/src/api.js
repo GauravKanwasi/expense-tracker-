@@ -33,6 +33,7 @@ export async function apiRequest(path, options = {}) {
   const headers = new Headers(options.headers || {});
   const token = localStorage.getItem(TOKEN_KEY);
 
+  // Token ko ek hi jagah attach karne se protected requests consistent rehti hain.
   if (options.body && !(options.body instanceof URLSearchParams)) {
     headers.set("Content-Type", "application/json");
   }

@@ -4,7 +4,7 @@
   <p>
     <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12">
     <img src="https://img.shields.io/badge/FastAPI-REST_API-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI REST API">
-    <img src="https://img.shields.io/badge/tests-10_passing-2ea44f?style=for-the-badge" alt="Ten tests passing">
+    <img src="https://img.shields.io/badge/tests-12_passing-2ea44f?style=for-the-badge" alt="Twelve tests passing">
   </p>
   <p>
     <a href="http://127.0.0.1:8000/docs">Open Swagger docs</a> |
@@ -14,7 +14,7 @@
     <tr>
       <td><strong>Backend</strong><br>Ready for frontend integration</td>
       <td><strong>Interactive docs</strong><br>Swagger UI at <code>/docs</code></td>
-      <td><strong>Tests</strong><br>10 passing</td>
+      <td><strong>Tests</strong><br>12 passing</td>
     </tr>
   </table>
 </div>
@@ -73,13 +73,17 @@ Once authorized, create a category before adding a transaction. The transaction 
 - JWT authentication with protected routes.
 - User registration and current-user lookup.
 - React/Vite dashboard with login, registration, transactions, categories, budgets, and analytics.
+- Smooth interactive UI details: AnimatedList for activity, GridMotion for the sign-in showcase, and ElectricBorder for the main action.
 - Separate debt and investment tracking with debt direction and interest.
 - Date presets and apply-on-demand filters keep the dashboard responsive.
 - User-owned categories with duplicate-name protection.
 - Transaction create, list, filter, update, and delete.
 - Transaction filters for type, category, date range, and pagination.
 - One monthly budget per user and month.
-- Analytics for totals and totals grouped by category.
+- Budget spending, remaining limits, and available-after-plans calculations.
+- Analytics for cash flow, debt, investments, and totals grouped by category.
+- Exact money values up to 29 whole-number digits and 2 decimal places.
+- Money response values are JSON strings so large amounts stay exact in JavaScript.
 - Ownership checks so one user cannot read or change another user data.
 - Request validation for email, password length, positive amounts, dates, and budget months.
 - Local CORS support for a Vite or React frontend on port 5173.
@@ -103,7 +107,8 @@ app/
 |   |-- analytics.py           Summary and category analytics
 |   `-- inti.py                Unused placeholder kept for now
 migrations/
-`-- 0002_add_finance_fields.sql  Debt and investment fields
+|-- 0002_add_finance_fields.sql  Debt and investment fields
+`-- 0003_use_fixed_precision_money.sql  Exact NUMERIC(31,2) money columns
 frontend/
 |-- package.json              React and Vite scripts
 |-- package-lock.json         Locked frontend dependency tree
@@ -113,6 +118,7 @@ frontend/
     |-- api.js                API client and token handling
     |-- App.jsx               Dashboard and forms
     |-- main.jsx              React entry point
+    |-- components/           AnimatedList, GridMotion, ElectricBorder
     `-- styles.css            Responsive application styles
 tests/
 |-- conftest.py                Isolated test database and test client
@@ -229,7 +235,7 @@ All endpoints marked with a lock require a Bearer token.
 | Budgets | GET | `/budgets/{budget_id}` | Get one budget | Yes |
 | Budgets | PUT | `/budgets/{budget_id}` | Update a budget | Yes |
 | Budgets | DELETE | `/budgets/{budget_id}` | Delete a budget | Yes |
-| Analytics | GET | `/analytics/summary` | Income, expenses, and balance | Yes |
+| Analytics | GET | `/analytics/summary` | Cash, budget, debt, and investment totals | Yes |
 | Analytics | GET | `/analytics/by-category` | Totals grouped by category | Yes |
 
 ## Frontend integration
@@ -301,7 +307,8 @@ Use the returned category `id` when creating a transaction. Do not assume that F
 }
 ~~~
 
-`category_id` must belong to the logged-in user. `amount` must be greater than zero. `type` can be `income`, `expense`, `debt`, or `investment`.
+`category_id` must belong to the logged-in user. `amount` must be greater than zero and supports up to 29 whole-number digits with up to 2 decimal places. `type` can be `income`, `expense`, `debt`, or `investment`.
+Money values returned by the API are strings such as `"250.00"`; this prevents large values from being rounded by JavaScript.
 
 ### Debt transaction
 
@@ -346,7 +353,8 @@ Use `investment_action` as `contribution` or `withdrawal`. Investments are not c
 ~~~
 
 Only one budget is allowed for each user, year, and month.
-Budgets remain positive spending limits; net debt can be negative when money lent out is greater than money borrowed.
+Budgets remain positive spending limits. Budget responses include `spent`, `remaining`, and `percentage`.
+The dashboard keeps real cash separate from planning and shows `available_after_budgets`, which can be negative when planned spending is greater than available cash.
 
 ### Filter transactions
 
@@ -366,6 +374,8 @@ GET /transactions/?type=expense&category_id=5&start_date=2026-08-01&end_date=202
 GET /analytics/summary?start_date=2026-08-01&end_date=2026-08-31
 GET /analytics/by-category?start_date=2026-08-01&end_date=2026-08-31
 ~~~
+
+The summary includes income and expenses, `cash_balance`, budget totals and remaining amounts, net debt, debt interest, and net investment movements.
 
 ## Interactive walkthrough
 
@@ -418,7 +428,7 @@ The backend is in good shape for local development and frontend integration. Bef
 - [ ] Replace any previously exposed database password or JWT secret.
 - [ ] Put real secrets only in environment variables; never commit `.env`.
 - [ ] Replace `Base.metadata.create_all()` with Alembic migrations.
-- [ ] Change money columns from floating point to a fixed-precision `Decimal` or `Numeric` type.
+- [x] Use fixed-precision PostgreSQL `NUMERIC(31,2)` money columns.
 - [ ] Add rate limiting and account lockout protection to login.
 - [ ] Run behind HTTPS and add production security headers.
 - [ ] Set CORS to the exact deployed frontend URL.
@@ -426,13 +436,13 @@ The backend is in good shape for local development and frontend integration. Bef
 - [ ] Add logging and monitoring without logging passwords or tokens.
 
 `.env.example` contains placeholders only. Create a private `.env` file from it before running the API.
-The current PostgreSQL database also needs `migrations/0002_add_finance_fields.sql`; it has already been applied to the configured local database.
+The configured PostgreSQL database must have both `migrations/0002_add_finance_fields.sql` and `migrations/0003_use_fixed_precision_money.sql` applied before using the new debt, investment, and large-money fields.
 
 ## Next steps
 
 1. Expand the frontend with editing, pagination controls, and richer charts.
 2. Store the JWT safely in the frontend and send it as `Authorization: Bearer <token>`.
-3. Add Alembic migrations and fixed-precision money handling before deployment.
+3. Replace the checked-in SQL migration flow with Alembic before deployment.
 4. Add deployment configuration, HTTPS, backups, rate limiting, and monitoring.
 
 ## License

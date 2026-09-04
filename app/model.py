@@ -1,16 +1,43 @@
+from decimal import Decimal
+
 from sqlalchemy import (
     Column,
     DateTime,
-    Float,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.types import TypeDecorator
 
 from .database import Base
+
+
+class MoneyType(TypeDecorator):
+    """PostgreSQL mein exact money rakho, SQLite tests mein float rounding roko."""
+
+    impl = Numeric
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "sqlite":
+            return dialect.type_descriptor(String(64))
+        return dialect.type_descriptor(Numeric(31, 2))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        # Frontend se aaya Decimal yahan safe format mein database tak jaata hai.
+        decimal_value = value if isinstance(value, Decimal) else Decimal(str(value))
+        return format(decimal_value, "f") if dialect.name == "sqlite" else decimal_value
+
+    def process_result_value(self, value, dialect):
+        if value is None or isinstance(value, Decimal):
+            return value
+        return Decimal(str(value))
 
 
 class User(Base):
@@ -64,11 +91,11 @@ class Transaction(Base):
         ForeignKey("categories.id", name="fk_transactions_category"),
         nullable=False
     )
-    amount = Column(Float, nullable=False)
+    amount = Column(MoneyType(), nullable=False)
     type = Column(String(20), nullable=False)
     description = Column(String(255), nullable=True)
     debt_direction = Column(String(20), nullable=True)
-    interest_amount = Column(Float, nullable=True)
+    interest_amount = Column(MoneyType(), nullable=True)
     investment_action = Column(String(20), nullable=True)
     date = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -88,7 +115,7 @@ class Budget(Base):
     )
     year = Column(Integer, nullable=False)
     month = Column(Integer, nullable=False)
-    amount = Column(Float, nullable=False)
+    amount = Column(MoneyType(), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="budgets")

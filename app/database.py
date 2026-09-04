@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 load_dotenv()
 
+# Secrets .env se aate hain; inhe source code ya GitHub mein hard-code mat karo.
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
@@ -23,6 +24,7 @@ Base = declarative_base()
 
 
 def get_db():
+    # Har request ko apna session do aur kaam ke baad connection release karo.
     db = SessionLocal()
     try:
         yield db
