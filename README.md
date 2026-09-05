@@ -1,10 +1,10 @@
 <div align="center">
-  <h1>Expense Tracker API</h1>
-  <p>A clean FastAPI backend for personal income, expenses, budgets, and analytics.</p>
+  <h1>Ledgerly Expense Tracker</h1>
+  <p>A FastAPI and React workspace for personal income, expenses, budgets, debt, investments, and analytics.</p>
   <p>
     <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12">
     <img src="https://img.shields.io/badge/FastAPI-REST_API-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI REST API">
-    <img src="https://img.shields.io/badge/tests-12_passing-2ea44f?style=for-the-badge" alt="Twelve tests passing">
+    <img src="https://img.shields.io/badge/tests-18_passing-2ea44f?style=for-the-badge" alt="Eighteen tests passing">
   </p>
   <p>
     <a href="http://127.0.0.1:8000/docs">Open Swagger docs</a> |
@@ -14,7 +14,7 @@
     <tr>
       <td><strong>Backend</strong><br>Ready for frontend integration</td>
       <td><strong>Interactive docs</strong><br>Swagger UI at <code>/docs</code></td>
-      <td><strong>Tests</strong><br>12 passing</td>
+      <td><strong>Tests</strong><br>18 passing</td>
     </tr>
   </table>
 </div>
@@ -52,7 +52,9 @@ The React/Vite frontend is now included in the `frontend/` folder. Swagger at `/
 - [Frontend integration](#frontend-integration)
 - [Copy-ready examples](#copy-ready-examples)
 - [Test the backend](#test-the-backend)
+- [Database migrations](#database-migrations)
 - [Security and production checklist](#security-and-production-checklist)
+- [Security and safe sharing](docs/SECURITY.md)
 - [Next steps](#next-steps)
 
 ## Start here
@@ -61,8 +63,8 @@ The React/Vite frontend is now included in the `frontend/` folder. Swagger at `/
   <summary><strong>Run the API in three steps</strong></summary>
 
 1. Install the dependencies and copy <code>.env.example</code> to <code>.env</code>.
-2. Start the server with <code>uvicorn app.main:app --reload</code>.
-3. Open <a href="http://127.0.0.1:8000/docs">Swagger UI</a>, register, log in, and click <strong>Authorize</strong>.
+2. Create or update the database with <code>alembic upgrade head</code>.
+3. Start the server with <code>uvicorn app.main:app --reload</code>, then open <a href="http://127.0.0.1:8000/docs">Swagger UI</a>.
 
 </details>
 
@@ -71,14 +73,15 @@ Once authorized, create a category before adding a transaction. The transaction 
 ## What works now
 
 - JWT authentication with protected routes.
+- Basic login throttling and logout-based access-token revocation.
 - User registration and current-user lookup.
 - React/Vite dashboard with login, registration, transactions, categories, budgets, and analytics.
-- Smooth interactive UI details: AnimatedList for activity, GridMotion for the sign-in showcase, and ElectricBorder for the main action.
+- Lightweight CSS-first motion for buttons, lists, and the sign-in background; no animation library is shipped to users.
 - Separate debt and investment tracking with debt direction and interest.
 - Date presets and apply-on-demand filters keep the dashboard responsive.
 - User-owned categories with duplicate-name protection.
 - Transaction create, list, filter, update, and delete.
-- Transaction filters for type, category, date range, and pagination.
+- Transaction filters for type, category, date range, and paginated responses with totals.
 - One monthly budget per user and month.
 - Budget spending, remaining limits, and available-after-plans calculations.
 - Analytics for cash flow, debt, investments, and totals grouped by category.
@@ -87,28 +90,30 @@ Once authorized, create a category before adding a transaction. The transaction 
 - Ownership checks so one user cannot read or change another user data.
 - Request validation for email, password length, positive amounts, dates, and budget months.
 - Local CORS support for a Vite or React frontend on port 5173.
-- Automated API tests.
+- Automated API tests and GitHub Actions verification on pushes and pull requests.
 
 ## Project structure
 
 ~~~text
 app/
-|-- main.py                    App entry point, routers, CORS, health check
+|-- main.py                    App entry point, routers, CORS, logging, health check
 |-- database.py                Database engine and session dependency
 |-- model.py                   SQLAlchemy database models
 |-- schemas.py                 Pydantic request and response schemas
 |-- security.py                Password hashing and JWT authentication
 |-- routes/
 |   |-- users.py               Registration and current user
-|   |-- auth.py                Login
+|   |-- auth.py                Login, throttling, and logout
 |   |-- categories.py          Category CRUD
 |   |-- transactions.py        Transaction CRUD and filters
 |   |-- budgets.py             Monthly budget CRUD
 |   |-- analytics.py           Summary and category analytics
-|   `-- inti.py                Unused placeholder kept for now
 migrations/
-|-- 0002_add_finance_fields.sql  Debt and investment fields
-`-- 0003_use_fixed_precision_money.sql  Exact NUMERIC(31,2) money columns
+|-- env.py                     Alembic migration environment
+|-- versions/                  Current schema and query-index revisions
+|-- README.md                  Safe migration instructions
+|-- 0002_add_finance_fields.sql  Legacy pre-Alembic record
+`-- 0003_use_fixed_precision_money.sql  Legacy pre-Alembic record
 frontend/
 |-- package.json              React and Vite scripts
 |-- package-lock.json         Locked frontend dependency tree
@@ -116,15 +121,19 @@ frontend/
 |-- .env.example              Frontend API URL template
 `-- src/
     |-- api.js                API client and token handling
-    |-- App.jsx               Dashboard and forms
+    |-- App.jsx               Application state and panel orchestration
+    |-- components/           Focused auth, budget, category, analytics, and transaction UI
+    |-- utils.js              Shared date and exact-money helpers
     |-- main.jsx              React entry point
-    |-- components/           AnimatedList, GridMotion, ElectricBorder
     `-- styles.css            Responsive application styles
 tests/
 |-- conftest.py                Isolated test database and test client
 `-- test_api.py                API behavior tests
 .env.example                  Safe environment variable template
 pytest.ini                    Pytest configuration
+alembic.ini                   Alembic configuration
+docs/SECURITY.md              Secret rotation and safe-sharing guide
+CONTRIBUTING.md               Commit and verification guide
 requirements.txt              Runtime dependencies
 requirements-dev.txt          Development and test dependencies
 ~~~
@@ -145,6 +154,7 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 Copy-Item .env.example .env
+alembic upgrade head
 uvicorn app.main:app --reload
 ~~~
 
@@ -159,6 +169,12 @@ Keep the terminal running while using the API. The server should show:
 ~~~text
 Uvicorn running on http://127.0.0.1:8000
 ~~~
+
+## Database migrations
+
+For a new, empty database, run `alembic upgrade head` before starting the API. The application no longer creates tables automatically at startup.
+
+If this project already has a development database from before Alembic was added, first back it up and read [migrations/README.md](migrations/README.md). Do not run the initial migration against existing tables. After confirming that its schema already contains the current finance fields, stamp it at `20260905_01` and then run `alembic upgrade head` to add dashboard indexes and align the transaction description field.
 
 Open these pages in your browser:
 
@@ -201,6 +217,7 @@ Suggested test order:
 ~~~text
 POST /users/                  Register
 POST /auth/login              Login and copy token
+POST /auth/logout             Revoke the current token when finished
 GET  /users/me                 Confirm authentication
 POST /categories/             Create a category
 POST /transactions/            Add income or expense
@@ -220,6 +237,7 @@ All endpoints marked with a lock require a Bearer token.
 | Users | POST | `/users/` | Register a user | No |
 | Users | GET | `/users/me` | Get the logged-in user | Yes |
 | Auth | POST | `/auth/login` | Log in and receive a JWT | No |
+| Auth | POST | `/auth/logout` | Revoke the current JWT | Yes |
 | Categories | GET | `/categories/` | List your categories | Yes |
 | Categories | POST | `/categories/` | Create a category | Yes |
 | Categories | GET | `/categories/{category_id}` | Get one category | Yes |
@@ -251,7 +269,9 @@ const response = await fetch(API_URL + "/transactions/", {
   }
 });
 
-const transactions = await response.json();
+const page = await response.json();
+const transactions = page.items;
+const totalTransactions = page.total;
 ~~~
 
 The login request is form-encoded because it follows the OAuth2 password flow:
@@ -366,7 +386,7 @@ GET /transactions/?skip=0&limit=20
 GET /transactions/?type=expense&category_id=5&start_date=2026-08-01&end_date=2026-08-31
 ~~~
 
-`limit` is capped at 100. Dates use `YYYY-MM-DD` format in query parameters.
+`limit` is capped at 100. Dates use `YYYY-MM-DD` format in query parameters. The response is an object with `items`, `total`, `skip`, and `limit`, so a frontend can calculate real pages.
 
 ### Read analytics
 
@@ -407,7 +427,8 @@ Successful CRUD requests currently return status <code>200</code>.
 | --- | --- | --- |
 | 200 | Success | Request completed |
 | 400 | Bad request | Duplicate data, invalid filter, or protected category deletion |
-| 401 | Unauthorized | Missing, expired, or invalid token |
+| 401 | Unauthorized | Missing, expired, revoked, or invalid token |
+| 429 | Too many requests | More than five failed login attempts within one minute |
 | 404 | Not found | Resource does not belong to the logged-in user or does not exist |
 | 422 | Validation error | Request body or query parameter has the wrong value |
 
@@ -425,25 +446,25 @@ The tests use an isolated SQLite database, so normal test runs do not change you
 
 The backend is in good shape for local development and frontend integration. Before deploying it publicly, complete these items:
 
-- [ ] Replace any previously exposed database password or JWT secret.
+- [ ] Rotate any database password that was shared outside Git; see [the security guide](docs/SECURITY.md).
 - [ ] Put real secrets only in environment variables; never commit `.env`.
-- [ ] Replace `Base.metadata.create_all()` with Alembic migrations.
+- [x] Use Alembic for the application schema history.
 - [x] Use fixed-precision PostgreSQL `NUMERIC(31,2)` money columns.
-- [ ] Add rate limiting and account lockout protection to login.
+- [x] Add a basic in-memory five-attempt login throttle and logout token revocation.
 - [ ] Run behind HTTPS and add production security headers.
 - [ ] Set CORS to the exact deployed frontend URL.
 - [ ] Use a production process manager and database backups.
-- [ ] Add logging and monitoring without logging passwords or tokens.
+- [x] Log request outcomes and unexpected errors without logging passwords or tokens.
 
 `.env.example` contains placeholders only. Create a private `.env` file from it before running the API.
-The configured PostgreSQL database must have both `migrations/0002_add_finance_fields.sql` and `migrations/0003_use_fixed_precision_money.sql` applied before using the new debt, investment, and large-money fields.
+The login throttle and token revocation list are intentionally in memory for this single-instance class project. Use Redis or another shared store before deploying more than one API worker.
 
 ## Next steps
 
-1. Expand the frontend with editing, pagination controls, and richer charts.
-2. Store the JWT safely in the frontend and send it as `Authorization: Bearer <token>`.
-3. Replace the checked-in SQL migration flow with Alembic before deployment.
-4. Add deployment configuration, HTTPS, backups, rate limiting, and monitoring.
+1. Add a second real page, then introduce React Router.
+2. Move from `localStorage` to httpOnly refresh-token cookies for a public deployment.
+3. Move throttling and token revocation to Redis for multiple API workers.
+4. Add deployment configuration, HTTPS, backups, monitoring, and an error tracker.
 
 ## License
 

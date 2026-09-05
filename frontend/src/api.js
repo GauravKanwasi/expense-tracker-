@@ -33,7 +33,7 @@ export async function apiRequest(path, options = {}) {
   const headers = new Headers(options.headers || {});
   const token = localStorage.getItem(TOKEN_KEY);
 
-  // Token ko ek hi jagah attach karne se protected requests consistent rehti hain.
+  // Attach the token in one place so protected requests stay consistent.
   if (options.body && !(options.body instanceof URLSearchParams)) {
     headers.set("Content-Type", "application/json");
   }
@@ -78,6 +78,10 @@ export function login(email, password) {
       password
     })
   });
+}
+
+export function logout() {
+  return apiRequest("/auth/logout", { method: "POST" });
 }
 
 export function register(payload) {

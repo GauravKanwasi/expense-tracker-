@@ -4,6 +4,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -17,7 +18,7 @@ from .database import Base
 
 
 class MoneyType(TypeDecorator):
-    """PostgreSQL mein exact money rakho, SQLite tests mein float rounding roko."""
+    """Keep exact money in PostgreSQL and avoid float rounding in SQLite tests."""
 
     impl = Numeric
     cache_ok = True
@@ -30,7 +31,7 @@ class MoneyType(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is None:
             return None
-        # Frontend se aaya Decimal yahan safe format mein database tak jaata hai.
+        # Store incoming values in an exact, database-safe representation.
         decimal_value = value if isinstance(value, Decimal) else Decimal(str(value))
         return format(decimal_value, "f") if dialect.name == "sqlite" else decimal_value
 
@@ -74,6 +75,7 @@ class Category(Base):
             "name",
             name="uq_categories_user_name"
         ),
+        Index("ix_categories_user_id", "user_id"),
     )
 
 
@@ -103,6 +105,8 @@ class Transaction(Base):
     user = relationship("User", back_populates="transactions")
     category = relationship("Category", back_populates="transactions")
 
+    __table_args__ = (Index("ix_transactions_user_date", "user_id", "date"),)
+
 
 class Budget(Base):
     __tablename__ = "budgets"
@@ -127,4 +131,5 @@ class Budget(Base):
             "month",
             name="uq_budgets_user_year_month"
         ),
+        Index("ix_budgets_user_id", "user_id"),
     )

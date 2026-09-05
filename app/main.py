@@ -1,7 +1,10 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+import logging
+from time import perf_counter
 
-from .database import Base, engine
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
 from . import model
 from .routes.users import router as users_router
 from .routes.auth import router as auth_router
@@ -11,8 +14,8 @@ from .routes.budgets import router as budgets_router
 from .routes.analytics import router as analytics_router
 from .schemas import HealthResponse, MessageResponse
 
-
-Base.metadata.create_all(bind=engine)
+logger = logging.getLogger("expense_tracker")
+logger.setLevel(logging.INFO)
 
 app = FastAPI(
     title="Expense Tracker API",
@@ -23,6 +26,34 @@ app = FastAPI(
         "budgets, and analytics."
     )
 )
+
+
+@app.middleware("http")
+async def log_request(request: Request, call_next):
+    started_at = perf_counter()
+    response = await call_next(request)
+    duration_ms = round((perf_counter() - started_at) * 1000, 2)
+    logger.info(
+        "event=request_complete method=%s path=%s status=%s duration_ms=%s",
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration_ms
+    )
+    return response
+
+
+@app.exception_handler(Exception)
+async def handle_unexpected_error(request: Request, error: Exception):
+    logger.exception(
+        "event=unhandled_exception method=%s path=%s",
+        request.method,
+        request.url.path
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"}
+    )
 
 app.add_middleware(
     CORSMiddleware,

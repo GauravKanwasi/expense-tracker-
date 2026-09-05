@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -17,7 +18,9 @@ router = APIRouter(prefix="/users", tags=["users"])
 )
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
 
-    existing_user = db.query(User).filter(User.email == user.email).first()
+    existing_user = db.query(User).filter(
+        func.lower(User.email) == user.email
+    ).first()
 
     if existing_user:
         raise HTTPException(

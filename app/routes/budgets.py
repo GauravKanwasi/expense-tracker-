@@ -16,6 +16,13 @@ router = APIRouter(
     tags=["budgets"]
 )
 
+CENT = Decimal("0.01")
+
+
+def money_value(value):
+    # SQLite aggregates can be floats, so return a fixed two-decimal value.
+    return Decimal(str(value or 0)).quantize(CENT)
+
 
 def month_bounds(year: int, month: int):
     start = datetime(year, month, 1)
@@ -27,7 +34,7 @@ def month_bounds(year: int, month: int):
 
 
 def budget_response(db: Session, budget: Budget):
-    # Budget ka spent sirf us month ke expense transactions se calculate hota hai.
+    # Spending includes expense transactions from this budget's month only.
     start, end = month_bounds(budget.year, budget.month)
     spent = db.query(
         func.coalesce(func.sum(Transaction.amount), 0)
@@ -38,8 +45,8 @@ def budget_response(db: Session, budget: Budget):
         Transaction.date < end
     ).scalar()
 
-    amount = Decimal(str(budget.amount or 0))
-    spent = Decimal(str(spent or 0))
+    amount = money_value(budget.amount)
+    spent = money_value(spent)
 
     return {
         "id": budget.id,
@@ -48,7 +55,7 @@ def budget_response(db: Session, budget: Budget):
         "amount": amount,
         "spent": spent,
         "remaining": amount - spent,
-        "percentage": min(float((spent / amount) * 100), 100),
+        "percentage": float(min((spent / amount) * 100, Decimal("100"))),
         "created_at": budget.created_at
     }
 

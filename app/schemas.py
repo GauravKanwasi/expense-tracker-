@@ -7,6 +7,7 @@ from pydantic import (
     EmailStr,
     Field,
     PlainSerializer,
+    field_validator,
     model_validator
 )
 
@@ -14,7 +15,7 @@ from datetime import datetime
 
 
 def serialize_money(value: Decimal) -> str:
-    # JSON number ko browser kabhi-kabhi round kar deta hai, isliye string bhejo.
+    # Money is serialized as text so JavaScript cannot round large values.
     formatted = format(value, "f")
     return formatted if "." in formatted else formatted + ".00"
 
@@ -38,10 +39,27 @@ NonNegativeMoney = Annotated[
 ]
 
 
+def clean_required_text(value: str, field_name: str) -> str:
+    cleaned = value.strip()
+    if not cleaned:
+        raise ValueError(f"{field_name} cannot be blank")
+    return cleaned
+
+
 class UserCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value: str) -> str:
+        return clean_required_text(value, "Name")
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value):
+        return value.strip().casefold() if isinstance(value, str) else value
 
 
 class UserLogin(BaseModel):
@@ -49,12 +67,21 @@ class UserLogin(BaseModel):
     password: str
 
 
-class CategoryCreate(BaseModel):
+class CategoryBase(BaseModel):
     name: str = Field(min_length=1, max_length=100)
 
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value: str) -> str:
+        return clean_required_text(value, "Category name")
 
-class CategoryUpdate(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
+
+class CategoryCreate(CategoryBase):
+    pass
+
+
+class CategoryUpdate(CategoryBase):
+    pass
 
 
 class TransactionType(str, Enum):
@@ -75,7 +102,7 @@ class InvestmentAction(str, Enum):
 
 
 class TransactionBase(BaseModel):
-    category_id: int
+    category_id: int = Field(gt=0)
     amount: PositiveMoney
     type: TransactionType
     description: str | None = Field(default=None, max_length=255)
@@ -120,6 +147,13 @@ class TransactionResponse(BaseModel):
     interest_amount: MoneyAmount | None = None
     investment_action: InvestmentAction | None = None
     created_at: datetime | None = None
+
+
+class TransactionPageResponse(BaseModel):
+    items: list[TransactionResponse]
+    total: int = Field(ge=0)
+    skip: int = Field(ge=0)
+    limit: int = Field(ge=1)
 
 
 class BudgetBase(BaseModel):

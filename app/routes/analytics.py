@@ -9,7 +9,6 @@ from ..database import get_db
 from ..model import Budget, Category, Transaction, User
 from ..schemas import AnalyticsSummaryResponse, CategoryTotalResponse
 from ..security import get_current_user
-from .budgets import month_bounds
 
 
 router = APIRouter(
@@ -18,10 +17,13 @@ router = APIRouter(
 )
 
 ZERO = Decimal("0")
+CENT = Decimal("0.01")
 
 
 def decimal_value(value):
-    return value if isinstance(value, Decimal) else Decimal(str(value or 0))
+    amount = value if isinstance(value, Decimal) else Decimal(str(value or 0))
+    # SQLite aggregates can be floats; always return an exact two-decimal value.
+    return amount.quantize(CENT)
 
 
 def date_filters(start_date: date | None, end_date: date | None):
@@ -46,6 +48,26 @@ def date_filters(start_date: date | None, end_date: date | None):
         )
 
     return filters
+
+
+def monthly_expense_totals(db: Session, filters):
+    # Get all monthly totals in one query instead of querying once per budget.
+    rows = db.query(
+        func.extract("year", Transaction.date).label("year"),
+        func.extract("month", Transaction.date).label("month"),
+        func.sum(Transaction.amount).label("total")
+    ).filter(
+        *filters,
+        Transaction.type == "expense"
+    ).group_by(
+        func.extract("year", Transaction.date),
+        func.extract("month", Transaction.date)
+    ).all()
+
+    return {
+        (int(year), int(month)): decimal_value(total)
+        for year, month, total in rows
+    }
 
 
 @router.get(
@@ -195,32 +217,20 @@ def get_summary(
         (decimal_value(budget.amount) for budget in budgets),
         ZERO
     )
-    budget_month_filters = []
+    monthly_expenses = monthly_expense_totals(db, filters) if budgets else {}
+    budget_spent = ZERO
+    budget_remaining = ZERO
+    unspent_budget = ZERO
 
     for budget in budgets:
-        month_start, month_end = month_bounds(budget.year, budget.month)
-        budget_month_filters.append(
-            and_(
-                Transaction.date >= month_start,
-                Transaction.date < month_end
-            )
-        )
+        spent = monthly_expenses.get((budget.year, budget.month), ZERO)
+        remaining = decimal_value(budget.amount) - spent
+        budget_spent += spent
+        budget_remaining += remaining
+        # An overspent budget must not artificially increase available cash.
+        unspent_budget += max(remaining, ZERO)
 
-    if budget_month_filters:
-        budget_spent = db.query(
-            func.coalesce(func.sum(Transaction.amount), 0)
-        ).filter(
-            *filters,
-            Transaction.type == "expense",
-            or_(*budget_month_filters)
-        ).scalar()
-        budget_spent = decimal_value(budget_spent)
-    else:
-        budget_spent = ZERO
-
-    # Budget planning hai; ise cash balance se alag rakhkar available amount nikalo.
-    budget_remaining = budget_total - budget_spent
-    # Debt aur investments ko unke cash-flow direction ke hisaab se include karo.
+    # Keep budget planning separate from cash, then include debt and investment cash flow.
     cash_balance = (
         total_income - total_expenses
         + debt_borrowed - debt_lent
@@ -235,7 +245,7 @@ def get_summary(
         "budget_total": budget_total,
         "budget_spent": budget_spent,
         "budget_remaining": budget_remaining,
-        "available_after_budgets": cash_balance - budget_remaining,
+        "available_after_budgets": cash_balance - unspent_budget,
         "debt_borrowed": debt_borrowed,
         "debt_lent": debt_lent,
         "debt_interest": debt_interest,

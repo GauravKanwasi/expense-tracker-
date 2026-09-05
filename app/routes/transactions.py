@@ -8,6 +8,7 @@ from ..model import Transaction, Category, User
 from ..schemas import (
     MessageResponse,
     TransactionCreate,
+    TransactionPageResponse,
     TransactionResponse,
     TransactionUpdate
 )
@@ -21,7 +22,7 @@ router = APIRouter(
 
 
 def transaction_response(transaction: Transaction):
-    # Response helper se create, list, get aur update ka shape same rehta hai.
+    # Keep create, list, get, and update responses consistent.
     return {
         "id": transaction.id,
         "category_id": transaction.category_id,
@@ -93,7 +94,7 @@ def create_transaction(
 
 @router.get(
     "/",
-    response_model=list[TransactionResponse],
+    response_model=TransactionPageResponse,
     summary="List transactions"
 )
 def get_transactions(
@@ -174,11 +175,18 @@ def get_transactions(
             Transaction.date < end_datetime
         )
 
+    total = query.count()
     transactions = query.order_by(
-        Transaction.date.desc()
+        Transaction.date.desc(),
+        Transaction.id.desc()
     ).offset(skip).limit(limit).all()
 
-    return [transaction_response(item) for item in transactions]
+    return {
+        "items": [transaction_response(item) for item in transactions],
+        "total": total,
+        "skip": skip,
+        "limit": limit
+    }
 
 
 @router.get(

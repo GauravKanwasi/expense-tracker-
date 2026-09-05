@@ -1,3 +1,9 @@
+from fastapi.testclient import TestClient
+
+from app.database import get_db
+from app.main import app
+
+
 def register_user(client, email="user@example.com", password="Password123"):
     response = client.post(
         "/users/",
@@ -97,6 +103,82 @@ def test_registration_duplicate_email_and_login(client):
     assert response.json()["email"] == "user@example.com"
 
 
+def test_login_rate_limit_and_logout(client):
+    register_user(client)
+
+    for _ in range(5):
+        invalid_login = client.post(
+            "/auth/login",
+            data={"username": "user@example.com", "password": "wrong-password"}
+        )
+        assert invalid_login.status_code == 401
+
+    rate_limited = client.post(
+        "/auth/login",
+        data={"username": "user@example.com", "password": "wrong-password"}
+    )
+    assert rate_limited.status_code == 429
+    assert "retry-after" in rate_limited.headers
+
+    clear_login = client.post(
+        "/auth/login",
+        data={"username": "another@example.com", "password": "wrong-password"}
+    )
+    assert clear_login.status_code == 401
+
+
+def test_logout_revokes_the_current_token(client):
+    register_user(client)
+    headers = auth_headers(client)
+
+    logout = client.post("/auth/logout", headers=headers)
+    assert logout.status_code == 200
+    assert logout.json() == {"message": "Logged out successfully"}
+
+    protected_request = client.get("/users/me", headers=headers)
+    assert protected_request.status_code == 401
+
+
+def test_account_and_category_text_is_normalized(client):
+    created_user = client.post(
+        "/users/",
+        json={
+            "name": "  Test User  ",
+            "email": "  USER@EXAMPLE.COM  ",
+            "password": "Password123"
+        }
+    )
+    assert created_user.status_code == 200, created_user.text
+    assert created_user.json() == {
+        "id": 1,
+        "name": "Test User",
+        "email": "user@example.com"
+    }
+
+    headers = auth_headers(client, email=" USER@EXAMPLE.COM ")
+    category = client.post(
+        "/categories/",
+        json={"name": "  Food  "},
+        headers=headers
+    )
+    assert category.status_code == 200
+    assert category.json()["name"] == "Food"
+
+    duplicate_category = client.post(
+        "/categories/",
+        json={"name": "food"},
+        headers=headers
+    )
+    assert duplicate_category.status_code == 400
+
+    blank_category = client.post(
+        "/categories/",
+        json={"name": "   "},
+        headers=headers
+    )
+    assert blank_category.status_code == 422
+
+
 def test_protected_routes_require_authentication(client):
     protected_routes = [
         "/users/me",
@@ -109,6 +191,25 @@ def test_protected_routes_require_authentication(client):
     for route in protected_routes:
         response = client.get(route)
         assert response.status_code == 401
+
+
+def test_unexpected_errors_have_a_safe_response(client):
+    register_user(client)
+    headers = auth_headers(client)
+    original_override = app.dependency_overrides[get_db]
+
+    def broken_database_dependency():
+        raise RuntimeError("Test-only database failure")
+
+    app.dependency_overrides[get_db] = broken_database_dependency
+    try:
+        with TestClient(app, raise_server_exceptions=False) as safe_client:
+            response = safe_client.get("/users/me", headers=headers)
+    finally:
+        app.dependency_overrides[get_db] = original_override
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Internal server error"}
 
 
 def test_cors_allows_local_frontend(client):
@@ -193,33 +294,36 @@ def test_transaction_crud_filters_and_pagination(client):
 
     all_transactions = client.get("/transactions/", headers=headers)
     assert all_transactions.status_code == 200
-    assert [item["id"] for item in all_transactions.json()] == [
+    assert [item["id"] for item in all_transactions.json()["items"]] == [
         later_expense["id"], expense["id"], income["id"]
     ]
+    assert all_transactions.json()["total"] == 3
 
     expense_filter = client.get(
         "/transactions/?type=expense",
         headers=headers
     )
-    assert len(expense_filter.json()) == 2
+    assert len(expense_filter.json()["items"]) == 2
+    assert expense_filter.json()["total"] == 2
 
     category_filter = client.get(
         f"/transactions/?category_id={food_id}",
         headers=headers
     )
-    assert len(category_filter.json()) == 2
+    assert len(category_filter.json()["items"]) == 2
 
     date_filter = client.get(
         "/transactions/?start_date=2026-08-01&end_date=2026-08-31",
         headers=headers
     )
-    assert len(date_filter.json()) == 2
+    assert len(date_filter.json()["items"]) == 2
 
     page = client.get(
         "/transactions/?skip=1&limit=1",
         headers=headers
     )
-    assert [item["id"] for item in page.json()] == [expense["id"]]
+    assert [item["id"] for item in page.json()["items"]] == [expense["id"]]
+    assert page.json()["total"] == 3
 
     updated = client.put(
         f"/transactions/{expense['id']}",
@@ -305,6 +409,39 @@ def test_large_money_values_are_preserved(client):
     assert response.json()["amount"] == maximum_amount
 
 
+def test_money_totals_keep_two_decimal_places(client):
+    register_user(client)
+    headers = auth_headers(client)
+    category_id = create_category(client, headers, "Small values")
+
+    budget = client.post(
+        "/budgets/",
+        json={"year": 2026, "month": 8, "amount": "1.00"},
+        headers=headers
+    )
+    assert budget.status_code == 200
+
+    create_transaction(
+        client, headers, category_id, "0.10", "expense", "2026-08-15T12:00:00"
+    )
+    create_transaction(
+        client, headers, category_id, "0.20", "expense", "2026-08-16T12:00:00"
+    )
+
+    summary = client.get(
+        "/analytics/summary?start_date=2026-08-01&end_date=2026-08-31",
+        headers=headers
+    )
+    assert summary.status_code == 200
+    assert summary.json()["total_expenses"] == "0.30"
+    assert summary.json()["budget_spent"] == "0.30"
+    assert summary.json()["budget_remaining"] == "0.70"
+
+    listed_budget = client.get("/budgets/", headers=headers)
+    assert listed_budget.json()[0]["spent"] == "0.30"
+    assert listed_budget.json()[0]["remaining"] == "0.70"
+
+
 def test_budget_crud_and_duplicate_protection(client):
     register_user(client)
     headers = auth_headers(client)
@@ -352,6 +489,42 @@ def test_budget_crud_and_duplicate_protection(client):
         headers=headers
     )
     assert deleted.status_code == 200
+
+    assert client.get("/budgets/", headers=headers).json() == []
+
+
+def test_over_budget_does_not_increase_available_cash(client):
+    register_user(client)
+    headers = auth_headers(client)
+    category_id = create_category(client, headers, "Home")
+
+    client.post(
+        "/budgets/",
+        json={"year": 2026, "month": 8, "amount": 1000},
+        headers=headers
+    )
+    client.post(
+        "/budgets/",
+        json={"year": 2026, "month": 9, "amount": 2000},
+        headers=headers
+    )
+    create_transaction(
+        client, headers, category_id, 1200, "expense", "2026-08-15T12:00:00"
+    )
+    create_transaction(
+        client, headers, category_id, 2000, "income", "2026-08-01T12:00:00"
+    )
+
+    summary = client.get(
+        "/analytics/summary?start_date=2026-08-01&end_date=2026-09-30",
+        headers=headers
+    ).json()
+
+    assert summary["cash_balance"] == "800.00"
+    assert summary["budget_total"] == "3000.00"
+    assert summary["budget_spent"] == "1200.00"
+    assert summary["budget_remaining"] == "1800.00"
+    assert summary["available_after_budgets"] == "-1200.00"
 
 
 def test_analytics_summary_and_category_totals(client):
@@ -435,12 +608,40 @@ def test_debt_and_investment_transactions(client):
     )
     assert investment.status_code == 200, investment.text
 
+    lent_debt = client.post(
+        "/transactions/",
+        json={
+            "category_id": category_id,
+            "amount": 1000,
+            "type": "debt",
+            "debt_direction": "lent",
+            "date": "2026-08-30T12:00:00"
+        },
+        headers=headers
+    )
+    assert lent_debt.status_code == 200, lent_debt.text
+
+    withdrawal = client.post(
+        "/transactions/",
+        json={
+            "category_id": category_id,
+            "amount": 200,
+            "type": "investment",
+            "investment_action": "withdrawal",
+            "date": "2026-08-31T12:00:00"
+        },
+        headers=headers
+    )
+    assert withdrawal.status_code == 200, withdrawal.text
+
     summary = client.get("/analytics/summary", headers=headers)
     assert summary.status_code == 200
     assert summary.json()["debt_borrowed"] == "5000.00"
+    assert summary.json()["debt_lent"] == "1000.00"
     assert summary.json()["debt_interest"] == "250.00"
     assert summary.json()["investment_contributions"] == "1500.00"
-    assert summary.json()["cash_balance"] == "3500.00"
+    assert summary.json()["investment_withdrawals"] == "200.00"
+    assert summary.json()["cash_balance"] == "2700.00"
 
     missing_direction = client.post(
         "/transactions/",
@@ -490,3 +691,19 @@ def test_budget_spending_and_available_cash(client):
     assert summary.json()["budget_spent"] == "250.00"
     assert summary.json()["budget_remaining"] == "750.00"
     assert summary.json()["available_after_budgets"] == "0.00"
+
+    deleted = client.delete(
+        f"/budgets/{created.json()['id']}",
+        headers=headers
+    )
+    assert deleted.status_code == 200
+    assert client.get("/budgets/", headers=headers).json() == []
+
+    after_delete = client.get(
+        "/analytics/summary?start_date=2026-08-01&end_date=2026-08-31",
+        headers=headers
+    ).json()
+    assert after_delete["budget_total"] == "0.00"
+    assert after_delete["budget_spent"] == "0.00"
+    assert after_delete["budget_remaining"] == "0.00"
+    assert after_delete["available_after_budgets"] == "750.00"

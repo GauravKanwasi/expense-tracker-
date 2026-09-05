@@ -338,10 +338,6 @@ strong {
   gap: 0.6rem;
 }
 
-.transaction-action-border {
-  line-height: 0;
-}
-
 .button {
   border: 0;
   border-radius: 10px;
@@ -367,6 +363,11 @@ strong {
   color: #ffffff;
   background: linear-gradient(135deg, #0f766e, #109878);
   box-shadow: 0 10px 22px rgba(15, 118, 110, 0.18);
+}
+
+.button-glow {
+  background-size: 180% 180%;
+  animation: button-glow 4s ease-in-out infinite;
 }
 
 .button-primary:hover:not(:disabled) {
@@ -831,6 +832,8 @@ strong {
 }
 
 .section-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 520px;
   scroll-margin-top: 1.2rem;
   margin-bottom: 1rem;
 }
@@ -869,29 +872,31 @@ strong {
   min-width: 0;
 }
 
-.transaction-animated-list .item {
-  margin-bottom: 0;
-  border-radius: 10px;
+.transaction-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  scrollbar-color: #b7d4ca transparent;
+  scrollbar-width: thin;
 }
 
-.transaction-animated-list .item.selected {
-  background: #fbfdfc;
+.transaction-scroll::-webkit-scrollbar {
+  width: 7px;
 }
 
-.transaction-animated-list .transaction-row {
-  animation: none;
+.transaction-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #b7d4ca;
 }
 
-.transaction-list-loading {
-  display: grid;
-  min-height: 180px;
-  place-items: center;
-  color: #899691;
-  font-size: 0.78rem;
-}
-
-.transaction-animated-list .transaction-animated-item:last-child .transaction-row {
-  border-bottom: 0;
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  padding-top: 1rem;
+  color: #788783;
+  font-size: 0.72rem;
 }
 
 @media (hover: hover) {
@@ -1161,6 +1166,16 @@ strong {
   }
 }
 
+@keyframes button-glow {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
 @keyframes backdrop-in {
   from {
     opacity: 0;
@@ -1336,14 +1351,20 @@ strong {
   position: absolute;
   z-index: 0;
   inset: 0;
-  opacity: 0.28;
+  opacity: 0.6;
   pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(16, 185, 129, 0.32), transparent 54%),
+    linear-gradient(rgba(110, 231, 183, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(110, 231, 183, 0.12) 1px, transparent 1px);
+  background-size: auto, 42px 42px, 42px 42px;
+  animation: auth-grid-drift 18s linear infinite;
 }
 
-.auth-motion-fallback {
-  width: 100%;
-  height: 100%;
-  background: radial-gradient(circle at 50% 45%, rgba(16, 185, 129, 0.24), transparent 68%);
+@keyframes auth-grid-drift {
+  to {
+    background-position: center, 42px 42px, 42px 42px;
+  }
 }
 
 .auth-showcase > .showcase-brand {
@@ -1658,14 +1679,6 @@ strong {
 
   .topbar-actions .button {
     flex: 1;
-  }
-
-  .topbar-actions .transaction-action-border {
-    flex: 1;
-  }
-
-  .topbar-actions .transaction-action-border .button {
-    width: 100%;
   }
 
   .avatar {

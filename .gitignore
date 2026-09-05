@@ -5,3 +5,6 @@ node_modules/
 dist/
 __pycache__/
 *.pyc
+.pytest_cache/
+frontend/.vite/
+expense-tracker-share.zip

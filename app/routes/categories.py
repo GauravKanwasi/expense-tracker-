@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -43,7 +44,7 @@ def create_category(
     current_user: User = Depends(get_current_user)
 ):
     existing_category = db.query(Category).filter(
-        Category.name == category.name,
+        func.lower(Category.name) == category.name.lower(),
         Category.user_id == current_user.id
     ).first()
 
@@ -109,7 +110,7 @@ def update_category(
     category = get_user_category(db, category_id, current_user.id)
 
     duplicate_category = db.query(Category).filter(
-        Category.name == category_data.name,
+        func.lower(Category.name) == category_data.name.lower(),
         Category.user_id == current_user.id,
         Category.id != category_id
     ).first()
