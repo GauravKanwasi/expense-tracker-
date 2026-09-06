@@ -1,5 +1,5 @@
 :root {
-  /* External font request hata diya: first paint ab network par depend nahi karega. */
+  /* System fonts keep the first paint independent from a font-network request. */
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   color: #10201f;
   background: #eef3f1;
@@ -492,34 +492,22 @@ strong {
   padding: 1.3rem 1.35rem;
   background: #ffffff;
   box-shadow: 0 8px 25px rgba(25, 57, 53, 0.045);
-  animation: card-enter 520ms var(--ease-out) both;
+  animation: card-enter 520ms calc(var(--motion-index, 0) * 60ms) var(--ease-out) both;
   transition: transform 180ms var(--ease-out), box-shadow 180ms ease;
-}
-
-.stat-card:nth-child(2) {
-  animation-delay: 60ms;
-}
-
-.stat-card:nth-child(3) {
-  animation-delay: 120ms;
-}
-
-.stat-card:nth-child(4) {
-  animation-delay: 180ms;
-}
-
-.stat-card:nth-child(5) {
-  animation-delay: 240ms;
-}
-
-.stat-card:nth-child(6) {
-  animation-delay: 300ms;
 }
 
 @media (hover: hover) {
   .stat-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 16px 32px rgba(25, 57, 53, 0.1);
+  }
+
+  .stat-card:hover::before {
+    animation: stat-sheen 720ms var(--ease-out) both;
+  }
+
+  .stat-card:hover .stat-symbol {
+    transform: rotate(-8deg) scale(1.08);
   }
 }
 
@@ -555,6 +543,25 @@ strong {
   border-radius: 50%;
   content: "";
   opacity: 0.06;
+}
+
+.stat-card::before {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  bottom: 0;
+  left: -45%;
+  width: 32%;
+  content: "";
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.78), transparent);
+  transform: skewX(-18deg);
+}
+
+.stat-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .stat-card.green {
@@ -609,6 +616,7 @@ strong {
   background: rgba(255, 255, 255, 0.65);
   font-size: 1.15rem;
   font-weight: 700;
+  transition: transform 220ms var(--ease-out), background 220ms ease;
 }
 
 .stat-card .eyebrow,
@@ -625,6 +633,10 @@ strong {
   line-height: 1.08;
   letter-spacing: -0.06em;
   font-variant-numeric: tabular-nums;
+}
+
+.stat-value-pop {
+  animation: value-pop 460ms var(--ease-out) both;
 }
 
 .stat-note {
@@ -644,6 +656,17 @@ strong {
   border-radius: 16px;
   background: var(--paper);
   box-shadow: 0 8px 25px rgba(25, 57, 53, 0.04);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms var(--ease-out);
+}
+
+@media (hover: hover) {
+  .category-chart:hover,
+  .budget-card:hover,
+  .section-card:hover {
+    border-color: #cfe4dc;
+    box-shadow: var(--shadow);
+    transform: translateY(-2px);
+  }
 }
 
 .category-chart,
@@ -681,28 +704,7 @@ strong {
 .budget-row,
 .transaction-row,
 .category-chip {
-  animation: list-item-enter 420ms var(--ease-out) both;
-}
-
-.breakdown-row:nth-child(2),
-.budget-row:nth-child(2),
-.transaction-row:nth-child(3),
-.category-chip:nth-child(2) {
-  animation-delay: 55ms;
-}
-
-.breakdown-row:nth-child(3),
-.budget-row:nth-child(3),
-.transaction-row:nth-child(4),
-.category-chip:nth-child(3) {
-  animation-delay: 110ms;
-}
-
-.breakdown-row:nth-child(4),
-.budget-row:nth-child(4),
-.transaction-row:nth-child(5),
-.category-chip:nth-child(4) {
-  animation-delay: 165ms;
+  animation: list-item-enter 420ms calc(var(--motion-index, 0) * 55ms) var(--ease-out) both;
 }
 
 .breakdown-label,
@@ -1121,6 +1123,31 @@ strong {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes value-pop {
+  from {
+    opacity: 0.35;
+    transform: translateY(7px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes stat-sheen {
+  0% {
+    opacity: 0;
+    transform: translateX(0) skewX(-18deg);
+  }
+  20% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(480%) skewX(-18deg);
   }
 }
 

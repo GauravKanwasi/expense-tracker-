@@ -28,8 +28,12 @@ export default function CategoriesPanel({
         </button>
       </form>
       <div className="category-grid">
-        {categories.map((category) => (
-          <div className="category-chip" key={category.id}>
+        {categories.map((category, motionIndex) => (
+          <div
+            className="category-chip"
+            key={category.id}
+            style={{ "--motion-index": motionIndex }}
+          >
             <span className="category-dot" />
             <span>{category.name}</span>
             <button

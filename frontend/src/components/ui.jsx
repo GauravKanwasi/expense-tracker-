@@ -28,6 +28,7 @@ export function StatCard({
   tone,
   symbol,
   statId,
+  motionIndex,
   draggedStat,
   onDragStart,
   onDragOver,
@@ -37,6 +38,7 @@ export function StatCard({
   return (
     <article
       className={"stat-card " + tone + (draggedStat === statId ? " dragging" : "")}
+      style={{ "--motion-index": motionIndex }}
       draggable
       onDragStart={(event) => onDragStart(event, statId)}
       onDragOver={onDragOver}
@@ -49,7 +51,7 @@ export function StatCard({
         <span className="drag-handle" aria-hidden="true">⠿</span>
         <span className="stat-symbol">{symbol}</span>
       </div>
-      <strong className="stat-value">{value}</strong>
+      <strong className="stat-value stat-value-pop" key={value}>{value}</strong>
       <span className="stat-note">{note}</span>
     </article>
   );

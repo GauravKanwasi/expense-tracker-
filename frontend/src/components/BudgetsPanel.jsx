@@ -71,14 +71,18 @@ export default function BudgetsPanel({
       </form>
 
       <div className="budget-list">
-        {budgets.slice(0, 3).map((budget) => {
+        {budgets.slice(0, 3).map((budget, motionIndex) => {
           const spent = budget.spent ?? "0";
           const remaining = budget.remaining ?? "0";
           const percentage = moneyPercent(spent, budget.amount);
           const overBudget = isNegativeMoney(remaining);
 
           return (
-            <div className="budget-row" key={budget.id}>
+            <div
+              className="budget-row"
+              key={budget.id}
+              style={{ "--motion-index": motionIndex }}
+            >
               <div className="budget-row-top">
                 <span>{budget.year}-{String(budget.month).padStart(2, "0")}</span>
                 <strong>{formatMoney(budget.amount)}</strong>
@@ -93,6 +97,7 @@ export default function BudgetsPanel({
               </div>
               <div className="progress-track budget-progress">
                 <span
+                  key={`${budget.id}-${spent}-${budget.amount}`}
                   className={"progress-fill " + (percentage > 85 ? "warning" : "")}
                   style={{ width: percentage + "%" }}
                 />

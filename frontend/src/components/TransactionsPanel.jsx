@@ -39,8 +39,12 @@ export default function TransactionsPanel({
             <span />
           </div>
           <div className="transaction-scroll">
-            {transactions.map((transaction) => (
-              <div className="transaction-row" key={transaction.id}>
+            {transactions.map((transaction, motionIndex) => (
+              <div
+                className="transaction-row"
+                key={transaction.id}
+                style={{ "--motion-index": motionIndex }}
+              >
                 <div className="transaction-name">
                   <span className={"transaction-icon " + transaction.type}>
                     {transactionSign(transaction)}

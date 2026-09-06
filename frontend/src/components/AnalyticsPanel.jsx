@@ -75,10 +75,11 @@ export default function AnalyticsPanel({
   return (
     <>
       <section id="overview" className="stats-grid" aria-label="Financial summary">
-        {statOrder.map((statId) => (
+        {statOrder.map((statId, motionIndex) => (
           <StatCard
             key={statId}
             statId={statId}
+            motionIndex={motionIndex}
             draggedStat={draggedStat}
             onDragStart={onDragStart}
             onDragOver={onDragOver}
@@ -98,8 +99,12 @@ export default function AnalyticsPanel({
           />
           {categoryTotals.length ? (
             <div className="breakdown-list">
-              {categoryTotals.map((item) => (
-                <div className="breakdown-row" key={item.category_id}>
+              {categoryTotals.map((item, motionIndex) => (
+                <div
+                  className="breakdown-row"
+                  key={item.category_id}
+                  style={{ "--motion-index": motionIndex }}
+                >
                   <div className="breakdown-label">
                     <span className="category-dot" />
                     <span>{item.category_name}</span>
@@ -107,6 +112,7 @@ export default function AnalyticsPanel({
                   </div>
                   <div className="progress-track">
                     <span
+                      key={`${item.category_id}-${item.total}`}
                       className="progress-fill"
                       style={{ width: moneyPercent(item.total, maximumCategoryTotal) + "%" }}
                     />
