@@ -43,7 +43,8 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     return {
         "id": new_user.id,
         "name": new_user.name,
-        "email": new_user.email
+        "email": new_user.email,
+        "timezone": new_user.timezone
     }
 
 
@@ -56,5 +57,6 @@ def get_me(current_user: User = Depends(get_current_user)):
     return {
         "id": current_user.id,
         "name": current_user.name,
-        "email": current_user.email
+        "email": current_user.email,
+        "timezone": current_user.timezone
     }

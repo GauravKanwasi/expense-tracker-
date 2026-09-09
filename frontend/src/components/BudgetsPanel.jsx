@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   formatMoney,
   isNegativeMoney,
@@ -10,11 +11,17 @@ import { CardHeading } from "./ui";
 export default function BudgetsPanel({
   budgets,
   form,
+  editing,
   onFormChange,
   actionLoading,
   onSubmit,
-  onDelete
+  onDelete,
+  onEdit,
+  onCancelEdit
 }) {
+  const [showAll, setShowAll] = useState(false);
+  const visibleBudgets = showAll ? budgets : budgets.slice(0, 3);
+
   return (
     <article className="card budget-card">
       <CardHeading
@@ -66,12 +73,19 @@ export default function BudgetsPanel({
           className="button button-dark button-full"
           disabled={actionLoading === "budget"}
         >
-          {actionLoading === "budget" ? "Saving..." : "Save monthly budget"}
+          {actionLoading === "budget"
+            ? "Saving..."
+            : editing ? "Save budget changes" : "Save monthly budget"}
         </button>
+        {editing && (
+          <button type="button" className="button button-ghost button-full" onClick={onCancelEdit}>
+            Cancel edit
+          </button>
+        )}
       </form>
 
       <div className="budget-list">
-        {budgets.slice(0, 3).map((budget, motionIndex) => {
+        {visibleBudgets.map((budget, motionIndex) => {
           const spent = budget.spent ?? "0";
           const remaining = budget.remaining ?? "0";
           const percentage = moneyPercent(spent, budget.amount);
@@ -86,14 +100,23 @@ export default function BudgetsPanel({
               <div className="budget-row-top">
                 <span>{budget.year}-{String(budget.month).padStart(2, "0")}</span>
                 <strong>{formatMoney(budget.amount)}</strong>
-                <button
-                  className="icon-button"
-                  onClick={() => onDelete(budget.id)}
-                  disabled={actionLoading === "budget-" + budget.id}
-                  aria-label="Delete budget"
-                >
-                  ×
-                </button>
+                <div className="row-actions">
+                  <button
+                    className="text-button"
+                    onClick={() => onEdit(budget)}
+                    disabled={actionLoading === "budget-" + budget.id}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="icon-button"
+                    onClick={() => onDelete(budget.id)}
+                    disabled={actionLoading === "budget-" + budget.id}
+                    aria-label="Delete budget"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
               <div className="progress-track budget-progress">
                 <span
@@ -114,6 +137,11 @@ export default function BudgetsPanel({
           <p className="muted-copy">No budgets yet. Add your first monthly plan above.</p>
         )}
       </div>
+      {budgets.length > 3 && (
+        <button type="button" className="text-button budget-history-toggle" onClick={() => setShowAll((shown) => !shown)}>
+          {showAll ? "Show recent budgets" : "Show all budget history (" + budgets.length + ")"}
+        </button>
+      )}
     </article>
   );
 }

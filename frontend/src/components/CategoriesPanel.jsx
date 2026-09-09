@@ -3,10 +3,13 @@ import { CardHeading } from "./ui";
 export default function CategoriesPanel({
   categories,
   categoryName,
+  editing,
   onCategoryNameChange,
   actionLoading,
   onSubmit,
-  onDelete
+  onDelete,
+  onEdit,
+  onCancelEdit
 }) {
   return (
     <section id="categories" className="card section-card">
@@ -24,8 +27,13 @@ export default function CategoriesPanel({
           onChange={(event) => onCategoryNameChange(event.target.value)}
         />
         <button className="button button-dark" disabled={actionLoading === "category"}>
-          {actionLoading === "category" ? "Adding..." : "Add category"}
+          {actionLoading === "category"
+            ? editing ? "Saving..." : "Adding..."
+            : editing ? "Save category" : "Add category"}
         </button>
+        {editing && (
+          <button type="button" className="button button-ghost" onClick={onCancelEdit}>Cancel</button>
+        )}
       </form>
       <div className="category-grid">
         {categories.map((category, motionIndex) => (
@@ -36,14 +44,23 @@ export default function CategoriesPanel({
           >
             <span className="category-dot" />
             <span>{category.name}</span>
-            <button
-              className="chip-delete"
-              onClick={() => onDelete(category.id)}
-              disabled={actionLoading === "category-" + category.id}
-              aria-label={"Delete " + category.name}
-            >
-              ×
-            </button>
+            <div className="chip-actions">
+              <button
+                className="text-button"
+                onClick={() => onEdit(category)}
+                disabled={actionLoading === "category-" + category.id}
+              >
+                Edit
+              </button>
+              <button
+                className="chip-delete"
+                onClick={() => onDelete(category.id)}
+                disabled={actionLoading === "category-" + category.id}
+                aria-label={"Delete " + category.name}
+              >
+                ×
+              </button>
+            </div>
           </div>
         ))}
         {!categories.length && (

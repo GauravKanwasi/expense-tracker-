@@ -13,9 +13,12 @@ export default function TransactionsPanel({
   page,
   pageSize,
   actionLoading,
+  filters,
   onDelete,
+  onEdit,
   onAdd,
-  onPageChange
+  onPageChange,
+  onFiltersChange
 }) {
   const categoryNames = Object.fromEntries(
     categories.map((category) => [category.id, category.name])
@@ -29,6 +32,38 @@ export default function TransactionsPanel({
         title="Recent transactions"
         action={transactions.length + " of " + total + " shown"}
       />
+      <div className="transaction-filters" aria-label="Filter transactions">
+        <select
+          value={filters.type}
+          onChange={(event) => onFiltersChange({ type: event.target.value })}
+          aria-label="Filter by transaction type"
+        >
+          <option value="">All types</option>
+          <option value="income">Income</option>
+          <option value="expense">Expenses</option>
+          <option value="debt">Debt</option>
+          <option value="investment">Investments</option>
+        </select>
+        <select
+          value={filters.category_id}
+          onChange={(event) => onFiltersChange({ category_id: event.target.value })}
+          aria-label="Filter by category"
+        >
+          <option value="">All categories</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>{category.name}</option>
+          ))}
+        </select>
+        {(filters.type || filters.category_id) && (
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => onFiltersChange({ type: "", category_id: "" })}
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
       {transactions.length ? (
         <div className="transaction-list">
           <div className="transaction-header">
@@ -36,7 +71,7 @@ export default function TransactionsPanel({
             <span>Category</span>
             <span>Date</span>
             <span className="align-right">Amount</span>
-            <span />
+            <span className="align-right">Actions</span>
           </div>
           <div className="transaction-scroll">
             {transactions.map((transaction, motionIndex) => (
@@ -61,14 +96,23 @@ export default function TransactionsPanel({
                 <strong className={"transaction-amount " + transaction.type}>
                   {transactionSign(transaction)}{formatMoney(transaction.amount)}
                 </strong>
-                <button
-                  className="icon-button"
-                  onClick={() => onDelete(transaction.id)}
-                  disabled={actionLoading === "delete-" + transaction.id}
-                  aria-label="Delete transaction"
-                >
-                  ×
-                </button>
+                <div className="row-actions">
+                  <button
+                    className="text-button"
+                    onClick={() => onEdit(transaction)}
+                    disabled={actionLoading === "delete-" + transaction.id}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="icon-button"
+                    onClick={() => onDelete(transaction.id)}
+                    disabled={actionLoading === "delete-" + transaction.id}
+                    aria-label="Delete transaction"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
             ))}
           </div>

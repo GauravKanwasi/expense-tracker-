@@ -15,6 +15,6 @@ alembic stamp 20260905_01
 alembic upgrade head
 ```
 
-This applies the dashboard indexes and makes transaction descriptions optional, matching the application model.
+This applies the dashboard indexes, makes transaction descriptions optional, and adds the default `Asia/Kolkata` financial timezone for each user, matching the application model. New transactions are stored in UTC while date filters and monthly budgets use that financial timezone.
 
 The older `0002_add_finance_fields.sql` and `0003_use_fixed_precision_money.sql` files are legacy records. Do not run them after using Alembic.

@@ -12,7 +12,8 @@ export const emptyData = {
     debt_lent: 0,
     debt_interest: 0,
     investment_contributions: 0,
-    investment_withdrawals: 0
+    investment_withdrawals: 0,
+    budget_scope: "all_time"
   },
   categories: [],
   transactions: [],
@@ -25,8 +26,8 @@ export const STAT_ORDER_KEY = "ledgerly_stat_order";
 export const STAT_IDS = ["balance", "income", "expenses", "available", "debt", "invested"];
 export const TRANSACTIONS_PER_PAGE = 20;
 
-export function localDateTime() {
-  const now = new Date();
+export function localDateTime(value = new Date()) {
+  const now = value instanceof Date ? value : new Date(value);
   const offset = now.getTimezoneOffset() * 60000;
   return new Date(now.getTime() - offset).toISOString().slice(0, 16);
 }

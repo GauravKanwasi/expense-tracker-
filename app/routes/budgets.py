@@ -1,11 +1,9 @@
 from decimal import Decimal
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..finance import ZERO, money, money_difference, money_sum, month_bounds, month_key, user_zone
 from ..model import Budget, Transaction, User
 from ..schemas import BudgetCreate, BudgetResponse, BudgetUpdate, MessageResponse
 from ..security import get_current_user
@@ -16,37 +14,32 @@ router = APIRouter(
     tags=["budgets"]
 )
 
-CENT = Decimal("0.01")
+def monthly_expenses(db: Session, budgets: list[Budget], timezone_name: str):
+    """Group exact expense values once, avoiding SQLite's floating-point SUM."""
+    if not budgets:
+        return {}
 
-
-def money_value(value):
-    # SQLite aggregates can be floats, so return a fixed two-decimal value.
-    return Decimal(str(value or 0)).quantize(CENT)
-
-
-def month_bounds(year: int, month: int):
-    start = datetime(year, month, 1)
-    if month == 12:
-        end = datetime(year + 1, 1, 1)
-    else:
-        end = datetime(year, month + 1, 1)
-    return start, end
-
-
-def budget_response(db: Session, budget: Budget):
-    # Spending includes expense transactions from this budget's month only.
-    start, end = month_bounds(budget.year, budget.month)
-    spent = db.query(
-        func.coalesce(func.sum(Transaction.amount), 0)
-    ).filter(
-        Transaction.user_id == budget.user_id,
+    zone = user_zone(timezone_name)
+    bounds = [month_bounds(budget.year, budget.month, zone) for budget in budgets]
+    expected_months = {(budget.year, budget.month) for budget in budgets}
+    rows = db.query(Transaction.date, Transaction.amount).filter(
+        Transaction.user_id == budgets[0].user_id,
         Transaction.type == "expense",
-        Transaction.date >= start,
-        Transaction.date < end
-    ).scalar()
+        Transaction.date >= min(start for start, _ in bounds),
+        Transaction.date < max(end for _, end in bounds),
+    ).all()
+    totals = {key: ZERO for key in expected_months}
+    for occurred_at, amount in rows:
+        key = month_key(occurred_at, zone)
+        if key in totals:
+            totals[key] = money_sum((totals[key], amount))
+    return totals
 
-    amount = money_value(budget.amount)
-    spent = money_value(spent)
+
+def budget_response(budget: Budget, spent):
+    amount = money(budget.amount)
+    spent = money(spent)
+    remaining = money_difference(amount, spent)
 
     return {
         "id": budget.id,
@@ -54,10 +47,18 @@ def budget_response(db: Session, budget: Budget):
         "month": budget.month,
         "amount": amount,
         "spent": spent,
-        "remaining": amount - spent,
+        "remaining": remaining,
         "percentage": float(min((spent / amount) * 100, Decimal("100"))),
         "created_at": budget.created_at
     }
+
+
+def budget_responses(db: Session, budgets: list[Budget], timezone_name: str):
+    expenses = monthly_expenses(db, budgets, timezone_name)
+    return [
+        budget_response(budget, expenses.get((budget.year, budget.month), ZERO))
+        for budget in budgets
+    ]
 
 
 def get_user_budget(db: Session, budget_id: int, user_id: int):
@@ -108,7 +109,7 @@ def create_budget(
     db.commit()
     db.refresh(new_budget)
 
-    return budget_response(db, new_budget)
+    return budget_responses(db, [new_budget], current_user.timezone)[0]
 
 
 @router.get(
@@ -127,7 +128,7 @@ def get_budgets(
         Budget.month.desc()
     ).all()
 
-    return [budget_response(db, budget) for budget in budgets]
+    return budget_responses(db, budgets, current_user.timezone)
 
 
 @router.get(
@@ -142,7 +143,7 @@ def get_budget(
 ):
     budget = get_user_budget(db, budget_id, current_user.id)
 
-    return budget_response(db, budget)
+    return budget_responses(db, [budget], current_user.timezone)[0]
 
 
 @router.put(
@@ -178,7 +179,7 @@ def update_budget(
     db.commit()
     db.refresh(budget)
 
-    return budget_response(db, budget)
+    return budget_responses(db, [budget], current_user.timezone)[0]
 
 
 @router.delete(

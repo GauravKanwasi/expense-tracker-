@@ -1,6 +1,6 @@
 from decimal import Decimal
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import (
     BaseModel,
@@ -183,6 +183,7 @@ class UserResponse(BaseModel):
     id: int
     name: str
     email: EmailStr
+    timezone: str
 
 
 class TokenResponse(BaseModel):
@@ -217,6 +218,7 @@ class AnalyticsSummaryResponse(BaseModel):
     debt_interest: MoneyAmount
     investment_contributions: MoneyAmount
     investment_withdrawals: MoneyAmount
+    budget_scope: Literal["all_time", "complete_months", "partial_range"]
 
 
 class CategoryTotalResponse(BaseModel):

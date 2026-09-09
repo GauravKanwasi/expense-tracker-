@@ -50,7 +50,9 @@ export default function AnalyticsPanel({
     available: {
       label: "Available after plans",
       value: formatMoney(summary.available_after_budgets),
-      note: "Cash minus unspent budgets",
+      note: summary.budget_scope === "partial_range"
+        ? "Cash only for partial-month filters"
+        : "Cash minus unspent full-month budgets",
       tone: isNegativeMoney(summary.available_after_budgets) ? "red" : "green",
       symbol: "P"
     },

@@ -1,11 +1,21 @@
-from decimal import Decimal
-from datetime import date, datetime, time, timedelta
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..finance import (
+    ZERO,
+    is_complete_budget_month,
+    money,
+    money_difference,
+    money_sum,
+    month_bounds,
+    month_key,
+    range_contains_complete_month,
+    user_zone,
+    utc_day_bounds,
+)
 from ..model import Budget, Category, Transaction, User
 from ..schemas import AnalyticsSummaryResponse, CategoryTotalResponse
 from ..security import get_current_user
@@ -16,58 +26,51 @@ router = APIRouter(
     tags=["analytics"]
 )
 
-ZERO = Decimal("0")
-CENT = Decimal("0.01")
-
-
-def decimal_value(value):
-    amount = value if isinstance(value, Decimal) else Decimal(str(value or 0))
-    # SQLite aggregates can be floats; always return an exact two-decimal value.
-    return amount.quantize(CENT)
-
-
-def date_filters(start_date: date | None, end_date: date | None):
-    if start_date is not None and end_date is not None:
-        if start_date > end_date:
-            raise HTTPException(
-                status_code=400,
-                detail="start_date must be before or equal to end_date"
-            )
-
+def date_filters(start_date: date | None, end_date: date | None, timezone_name: str):
+    if start_date is not None and end_date is not None and start_date > end_date:
+        raise HTTPException(
+            status_code=400,
+            detail="start_date must be before or equal to end_date",
+        )
+    start, end = utc_day_bounds(start_date, end_date, user_zone(timezone_name))
     filters = []
-
-    if start_date is not None:
-        filters.append(
-            Transaction.date >= datetime.combine(start_date, time.min)
-        )
-
-    if end_date is not None:
-        next_day = end_date + timedelta(days=1)
-        filters.append(
-            Transaction.date < datetime.combine(next_day, time.min)
-        )
-
+    if start is not None:
+        filters.append(Transaction.date >= start)
+    if end is not None:
+        filters.append(Transaction.date < end)
     return filters
 
 
-def monthly_expense_totals(db: Session, filters):
-    # Get all monthly totals in one query instead of querying once per budget.
-    rows = db.query(
-        func.extract("year", Transaction.date).label("year"),
-        func.extract("month", Transaction.date).label("month"),
-        func.sum(Transaction.amount).label("total")
-    ).filter(
-        *filters,
-        Transaction.type == "expense"
-    ).group_by(
-        func.extract("year", Transaction.date),
-        func.extract("month", Transaction.date)
-    ).all()
+def full_month_budgets(budgets, start_date, end_date):
+    if start_date is None and end_date is None:
+        return budgets, "all_time"
+    selected = [
+        budget for budget in budgets
+        if is_complete_budget_month(budget.year, budget.month, start_date, end_date)
+    ]
+    scope = "complete_months" if range_contains_complete_month(start_date, end_date) else "partial_range"
+    return selected, scope
 
-    return {
-        (int(year), int(month)): decimal_value(total)
-        for year, month, total in rows
-    }
+
+def monthly_expense_totals(db: Session, budgets, timezone_name: str):
+    if not budgets:
+        return {}
+
+    zone = user_zone(timezone_name)
+    bounds = [month_bounds(budget.year, budget.month, zone) for budget in budgets]
+    expected_months = {(budget.year, budget.month) for budget in budgets}
+    rows = db.query(Transaction.date, Transaction.amount).filter(
+        Transaction.user_id == budgets[0].user_id,
+        Transaction.type == "expense",
+        Transaction.date >= min(start for start, _ in bounds),
+        Transaction.date < max(end for _, end in bounds),
+    ).all()
+    totals = {key: ZERO for key in expected_months}
+    for occurred_at, amount in rows:
+        key = month_key(occurred_at, zone)
+        if key in totals:
+            totals[key] = money_sum((totals[key], amount))
+    return totals
 
 
 @router.get(
@@ -89,168 +92,71 @@ def get_summary(
 ):
     filters = [
         Transaction.user_id == current_user.id,
-        *date_filters(start_date, end_date)
+        *date_filters(start_date, end_date, current_user.timezone),
     ]
-
-    totals = db.query(
-        func.coalesce(
-            func.sum(
-                case(
-                    (Transaction.type == "income", Transaction.amount),
-                    else_=0
-                )
-            ),
-            0
-        ).label("total_income"),
-        func.coalesce(
-            func.sum(
-                case(
-                    (Transaction.type == "expense", Transaction.amount),
-                    else_=0
-                )
-            ),
-            0
-        ).label("total_expenses")
-    ).filter(*filters).first()
-
-    total_income = decimal_value(totals.total_income)
-    total_expenses = decimal_value(totals.total_expenses)
-
-    detail_totals = db.query(
-        func.coalesce(
-            func.sum(
-                case(
-                    (
-                        (Transaction.type == "debt")
-                        & (Transaction.debt_direction == "borrowed"),
-                        Transaction.amount
-                    ),
-                    else_=0
-                )
-            ),
-            0
-        ).label("debt_borrowed"),
-        func.coalesce(
-            func.sum(
-                case(
-                    (
-                        (Transaction.type == "debt")
-                        & (Transaction.debt_direction == "lent"),
-                        Transaction.amount
-                    ),
-                    else_=0
-                )
-            ),
-            0
-        ).label("debt_lent"),
-        func.coalesce(
-            func.sum(
-                case(
-                    (Transaction.type == "debt", Transaction.interest_amount),
-                    else_=0
-                )
-            ),
-            0
-        ).label("debt_interest"),
-        func.coalesce(
-            func.sum(
-                case(
-                    (
-                        (Transaction.type == "investment")
-                        & (Transaction.investment_action == "contribution"),
-                        Transaction.amount
-                    ),
-                    else_=0
-                )
-            ),
-            0
-        ).label("investment_contributions"),
-        func.coalesce(
-            func.sum(
-                case(
-                    (
-                        (Transaction.type == "investment")
-                        & (Transaction.investment_action == "withdrawal"),
-                        Transaction.amount
-                    ),
-                    else_=0
-                )
-            ),
-            0
-        ).label("investment_withdrawals")
-    ).filter(*filters).first()
-
-    debt_borrowed = decimal_value(detail_totals.debt_borrowed)
-    debt_lent = decimal_value(detail_totals.debt_lent)
-    debt_interest = decimal_value(detail_totals.debt_interest)
-    investment_contributions = decimal_value(detail_totals.investment_contributions)
-    investment_withdrawals = decimal_value(detail_totals.investment_withdrawals)
-
-    budget_query = db.query(Budget).filter(
-        Budget.user_id == current_user.id
+    transactions = db.query(Transaction).filter(*filters).all()
+    total = lambda type_name: money_sum(
+        transaction.amount for transaction in transactions if transaction.type == type_name
+    )
+    total_income = total("income")
+    total_expenses = total("expense")
+    debt_borrowed = money_sum(
+        transaction.amount for transaction in transactions
+        if transaction.type == "debt" and transaction.debt_direction == "borrowed"
+    )
+    debt_lent = money_sum(
+        transaction.amount for transaction in transactions
+        if transaction.type == "debt" and transaction.debt_direction == "lent"
+    )
+    debt_interest = money_sum(
+        transaction.interest_amount for transaction in transactions if transaction.type == "debt"
+    )
+    investment_contributions = money_sum(
+        transaction.amount for transaction in transactions
+        if transaction.type == "investment" and transaction.investment_action == "contribution"
+    )
+    investment_withdrawals = money_sum(
+        transaction.amount for transaction in transactions
+        if transaction.type == "investment" and transaction.investment_action == "withdrawal"
     )
 
-    if start_date is not None:
-        budget_query = budget_query.filter(
-            or_(
-                Budget.year > start_date.year,
-                and_(
-                    Budget.year == start_date.year,
-                    Budget.month >= start_date.month
-                )
-            )
-        )
-
-    if end_date is not None:
-        budget_query = budget_query.filter(
-            or_(
-                Budget.year < end_date.year,
-                and_(
-                    Budget.year == end_date.year,
-                    Budget.month <= end_date.month
-                )
-            )
-        )
-
-    budgets = budget_query.all()
-    budget_total = sum(
-        (decimal_value(budget.amount) for budget in budgets),
-        ZERO
-    )
-    monthly_expenses = monthly_expense_totals(db, filters) if budgets else {}
+    budgets = db.query(Budget).filter(Budget.user_id == current_user.id).all()
+    budgets, budget_scope = full_month_budgets(budgets, start_date, end_date)
+    monthly_expenses = monthly_expense_totals(db, budgets, current_user.timezone)
+    budget_total = money_sum(budget.amount for budget in budgets)
     budget_spent = ZERO
     budget_remaining = ZERO
     unspent_budget = ZERO
 
     for budget in budgets:
         spent = monthly_expenses.get((budget.year, budget.month), ZERO)
-        remaining = decimal_value(budget.amount) - spent
-        budget_spent += spent
-        budget_remaining += remaining
+        remaining = money_difference(budget.amount, spent)
+        budget_spent = money_sum((budget_spent, spent))
+        budget_remaining = money_sum((budget_remaining, remaining))
         # An overspent budget must not artificially increase available cash.
-        unspent_budget += max(remaining, ZERO)
+        unspent_budget = money_sum((unspent_budget, max(remaining, ZERO)))
 
     # Keep budget planning separate from cash, then include debt and investment cash flow.
-    cash_balance = (
-        total_income - total_expenses
-        + debt_borrowed - debt_lent
-        - investment_contributions + investment_withdrawals
+    cash_balance = money_difference(
+        money_sum((total_income, debt_borrowed, investment_withdrawals)),
+        money_sum((total_expenses, debt_lent, investment_contributions)),
     )
 
     return {
         "total_income": total_income,
         "total_expenses": total_expenses,
-        "balance": total_income - total_expenses,
+        "balance": money_difference(total_income, total_expenses),
         "cash_balance": cash_balance,
         "budget_total": budget_total,
         "budget_spent": budget_spent,
         "budget_remaining": budget_remaining,
-        "available_after_budgets": cash_balance - unspent_budget,
+        "available_after_budgets": money_difference(cash_balance, unspent_budget),
         "debt_borrowed": debt_borrowed,
         "debt_lent": debt_lent,
         "debt_interest": debt_interest,
         "investment_contributions": investment_contributions,
-        "investment_withdrawals": investment_withdrawals
+        "investment_withdrawals": investment_withdrawals,
+        "budget_scope": budget_scope,
     }
 
 
@@ -275,30 +181,19 @@ def get_totals_by_category(
         Transaction.user_id == current_user.id,
         Transaction.type == "expense",
         Category.user_id == current_user.id,
-        *date_filters(start_date, end_date)
+        *date_filters(start_date, end_date, current_user.timezone)
     ]
 
-    totals = db.query(
-        Category.id.label("category_id"),
-        Category.name.label("category_name"),
-        func.sum(Transaction.amount).label("total")
-    ).join(
-        Category,
-        Category.id == Transaction.category_id
-    ).filter(
-        *filters
-    ).group_by(
-        Category.id,
-        Category.name
-    ).order_by(
-        func.sum(Transaction.amount).desc()
-    ).all()
-
+    rows = db.query(Category.id, Category.name, Transaction.amount).join(
+        Transaction, Category.id == Transaction.category_id
+    ).filter(*filters).all()
+    totals = {}
+    for category_id, category_name, amount in rows:
+        existing_name, existing_total = totals.get(category_id, (category_name, ZERO))
+        totals[category_id] = existing_name, money_sum((existing_total, amount))
     return [
-        {
-            "category_id": category_id,
-            "category_name": category_name,
-            "total": decimal_value(total)
-        }
-        for category_id, category_name, total in totals
+        {"category_id": category_id, "category_name": name, "total": total}
+        for category_id, (name, total) in sorted(
+            totals.items(), key=lambda item: item[1][1], reverse=True
+        )
     ]

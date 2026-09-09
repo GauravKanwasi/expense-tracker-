@@ -152,7 +152,8 @@ def test_account_and_category_text_is_normalized(client):
     assert created_user.json() == {
         "id": 1,
         "name": "Test User",
-        "email": "user@example.com"
+        "email": "user@example.com",
+        "timezone": "Asia/Kolkata"
     }
 
     headers = auth_headers(client, email=" USER@EXAMPLE.COM ")
@@ -409,6 +410,69 @@ def test_large_money_values_are_preserved(client):
     assert response.json()["amount"] == maximum_amount
 
 
+def test_maximum_money_totals_stay_exact(client):
+    register_user(client)
+    headers = auth_headers(client)
+    category_id = create_category(client, headers, "Maximum totals")
+    maximum_amount = "99999999999999999999999999999.99"
+    doubled_amount = "1" + "9" * 29 + ".98"
+
+    budget = client.post(
+        "/budgets/",
+        json={"year": 2026, "month": 8, "amount": maximum_amount},
+        headers=headers,
+    )
+    assert budget.status_code == 200, budget.text
+    assert budget.json()["remaining"] == maximum_amount
+
+    create_transaction(
+        client, headers, category_id, maximum_amount, "income", "2026-08-01T12:00:00"
+    )
+    create_transaction(
+        client, headers, category_id, maximum_amount, "income", "2026-08-02T12:00:00"
+    )
+    create_transaction(
+        client, headers, category_id, maximum_amount, "expense", "2026-08-03T12:00:00"
+    )
+
+    summary = client.get(
+        "/analytics/summary?start_date=2026-08-01&end_date=2026-08-31",
+        headers=headers,
+    )
+    assert summary.status_code == 200, summary.text
+    assert summary.json()["total_income"] == doubled_amount
+    assert summary.json()["total_expenses"] == maximum_amount
+    assert summary.json()["cash_balance"] == maximum_amount
+    assert summary.json()["budget_spent"] == maximum_amount
+    assert summary.json()["budget_remaining"] == "0.00"
+
+    listed_budget = client.get("/budgets/", headers=headers)
+    assert listed_budget.json()[0]["spent"] == maximum_amount
+    assert listed_budget.json()[0]["remaining"] == "0.00"
+
+
+def test_timezone_filters_keep_a_local_midnight_transaction_in_its_day(client):
+    register_user(client)
+    headers = auth_headers(client)
+    category_id = create_category(client, headers, "Timezone")
+
+    created = create_transaction(
+        client, headers, category_id, 100, "income", "2026-08-01T00:15:00"
+    )
+
+    included = client.get(
+        "/transactions/?start_date=2026-08-01&end_date=2026-08-01",
+        headers=headers,
+    )
+    assert [item["id"] for item in included.json()["items"]] == [created["id"]]
+
+    excluded = client.get(
+        "/transactions/?start_date=2026-07-31&end_date=2026-07-31",
+        headers=headers,
+    )
+    assert excluded.json()["items"] == []
+
+
 def test_money_totals_keep_two_decimal_places(client):
     register_user(client)
     headers = auth_headers(client)
@@ -557,7 +621,8 @@ def test_analytics_summary_and_category_totals(client):
         "debt_lent": "0.00",
         "debt_interest": "0.00",
         "investment_contributions": "0.00",
-        "investment_withdrawals": "0.00"
+        "investment_withdrawals": "0.00",
+        "budget_scope": "complete_months"
     }
 
     category_totals = client.get(
@@ -707,3 +772,31 @@ def test_budget_spending_and_available_cash(client):
     assert after_delete["budget_spent"] == "0.00"
     assert after_delete["budget_remaining"] == "0.00"
     assert after_delete["available_after_budgets"] == "750.00"
+
+
+def test_partial_month_filters_do_not_reserve_a_full_month_budget(client):
+    register_user(client)
+    headers = auth_headers(client)
+    category_id = create_category(client, headers, "Partial month")
+
+    client.post(
+        "/budgets/",
+        json={"year": 2026, "month": 8, "amount": 1000},
+        headers=headers,
+    )
+    create_transaction(
+        client, headers, category_id, 500, "income", "2026-08-15T09:00:00"
+    )
+    create_transaction(
+        client, headers, category_id, 200, "expense", "2026-08-15T12:00:00"
+    )
+
+    summary = client.get(
+        "/analytics/summary?start_date=2026-08-15&end_date=2026-08-15",
+        headers=headers,
+    ).json()
+    assert summary["cash_balance"] == "300.00"
+    assert summary["budget_scope"] == "partial_range"
+    assert summary["budget_total"] == "0.00"
+    assert summary["budget_spent"] == "0.00"
+    assert summary["available_after_budgets"] == "300.00"

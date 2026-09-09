@@ -4,7 +4,7 @@
   <p>
     <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12">
     <img src="https://img.shields.io/badge/FastAPI-REST_API-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI REST API">
-    <img src="https://img.shields.io/badge/tests-18_passing-2ea44f?style=for-the-badge" alt="Eighteen tests passing">
+    <img src="https://img.shields.io/badge/tests-21_passing-2ea44f?style=for-the-badge" alt="Twenty-one tests passing">
   </p>
   <p>
     <a href="http://127.0.0.1:8000/docs">Open Swagger docs</a> |
@@ -14,7 +14,7 @@
     <tr>
       <td><strong>Backend</strong><br>Ready for frontend integration</td>
       <td><strong>Interactive docs</strong><br>Swagger UI at <code>/docs</code></td>
-      <td><strong>Tests</strong><br>18 passing</td>
+      <td><strong>Tests</strong><br>21 passing</td>
     </tr>
   </table>
 </div>
@@ -76,6 +76,7 @@ Once authorized, create a category before adding a transaction. The transaction 
 - Basic login throttling and logout-based access-token revocation.
 - User registration and current-user lookup.
 - React/Vite dashboard with login, registration, transactions, categories, budgets, and analytics.
+- Dashboard editing for transactions, categories, and budgets; type/category transaction filters; and expandable budget history.
 - Lightweight CSS-first motion for buttons, lists, and the sign-in background; no animation library is shipped to users.
 - Separate debt and investment tracking with debt direction and interest.
 - Date presets and apply-on-demand filters keep the dashboard responsive.
@@ -85,8 +86,10 @@ Once authorized, create a category before adding a transaction. The transaction 
 - One monthly budget per user and month.
 - Budget spending, remaining limits, and available-after-plans calculations.
 - Analytics for cash flow, debt, investments, and totals grouped by category.
-- Exact money values up to 29 whole-number digits and 2 decimal places.
+- Exact money values up to 29 whole-number digits and 2 decimal places, including budget and analytics totals.
 - Money response values are JSON strings so large amounts stay exact in JavaScript.
+- Transaction timestamps are stored in UTC. A user starts in the `Asia/Kolkata` financial timezone, so date filters and monthly budgets keep late-night entries in the correct local day.
+- Budget analytics only reserve plans for complete calendar months in the selected date range; partial ranges show cash activity without silently mixing it with a full monthly budget.
 - Ownership checks so one user cannot read or change another user data.
 - Request validation for email, password length, positive amounts, dates, and budget months.
 - Local CORS support for a Vite or React frontend on port 5173.
@@ -100,6 +103,7 @@ app/
 |-- database.py                Database engine and session dependency
 |-- model.py                   SQLAlchemy database models
 |-- schemas.py                 Pydantic request and response schemas
+|-- finance.py                 Exact-money and financial-timezone helpers
 |-- security.py                Password hashing and JWT authentication
 |-- routes/
 |   |-- users.py               Registration and current user
@@ -174,7 +178,7 @@ Uvicorn running on http://127.0.0.1:8000
 
 For a new, empty database, run `alembic upgrade head` before starting the API. The application no longer creates tables automatically at startup.
 
-If this project already has a development database from before Alembic was added, first back it up and read [migrations/README.md](migrations/README.md). Do not run the initial migration against existing tables. After confirming that its schema already contains the current finance fields, stamp it at `20260905_01` and then run `alembic upgrade head` to add dashboard indexes and align the transaction description field.
+If this project already has a development database from before Alembic was added, first back it up and read [migrations/README.md](migrations/README.md). Do not run the initial migration against existing tables. After confirming that its schema already contains the current finance fields, stamp it at `20260905_01` and then run `alembic upgrade head` to add dashboard indexes, align the transaction description field, and add the default `Asia/Kolkata` financial timezone for each user.
 
 Open these pages in your browser:
 
@@ -329,6 +333,7 @@ Use the returned category `id` when creating a transaction. Do not assume that F
 
 `category_id` must belong to the logged-in user. `amount` must be greater than zero and supports up to 29 whole-number digits with up to 2 decimal places. `type` can be `income`, `expense`, `debt`, or `investment`.
 Money values returned by the API are strings such as `"250.00"`; this prevents large values from being rounded by JavaScript.
+The datetime is interpreted in the user's financial timezone and stored in UTC. Date filters use the same timezone, so an entry just after local midnight stays in the expected day and month.
 
 ### Debt transaction
 
@@ -396,6 +401,7 @@ GET /analytics/by-category?start_date=2026-08-01&end_date=2026-08-31
 ~~~
 
 The summary includes income and expenses, `cash_balance`, budget totals and remaining amounts, net debt, debt interest, and net investment movements.
+Its `budget_scope` is `all_time`, `complete_months`, or `partial_range`. For `partial_range`, budget totals stay at zero and `available_after_budgets` equals cash balance; use a complete calendar month to compare cash with that month’s plan.
 
 ## Interactive walkthrough
 

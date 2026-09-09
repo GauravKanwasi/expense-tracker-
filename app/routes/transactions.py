@@ -1,9 +1,10 @@
-from datetime import date, datetime, time, timedelta
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..finance import to_utc, user_zone, utc_day_bounds
 from ..model import Transaction, Category, User
 from ..schemas import (
     MessageResponse,
@@ -82,7 +83,7 @@ def create_transaction(
         debt_direction=transaction.debt_direction.value if transaction.debt_direction else None,
         interest_amount=transaction.interest_amount,
         investment_action=transaction.investment_action.value if transaction.investment_action else None,
-        date=transaction.date
+        date=to_utc(transaction.date, user_zone(current_user.timezone))
     )
 
     db.add(new_transaction)
@@ -156,21 +157,18 @@ def get_transactions(
             Transaction.category_id == category_id
         )
 
-    if start_date is not None:
-        start_datetime = datetime.combine(
-            start_date,
-            time.min
-        )
+    start_datetime, end_datetime = utc_day_bounds(
+        start_date,
+        end_date,
+        user_zone(current_user.timezone),
+    )
+
+    if start_datetime is not None:
         query = query.filter(
             Transaction.date >= start_datetime
         )
 
-    if end_date is not None:
-        next_day = end_date + timedelta(days=1)
-        end_datetime = datetime.combine(
-            next_day,
-            time.min
-        )
+    if end_datetime is not None:
         query = query.filter(
             Transaction.date < end_datetime
         )
@@ -235,7 +233,7 @@ def update_transaction(
     transaction.debt_direction = transaction_data.debt_direction.value if transaction_data.debt_direction else None
     transaction.interest_amount = transaction_data.interest_amount
     transaction.investment_action = transaction_data.investment_action.value if transaction_data.investment_action else None
-    transaction.date = transaction_data.date
+    transaction.date = to_utc(transaction_data.date, user_zone(current_user.timezone))
 
     db.commit()
     db.refresh(transaction)

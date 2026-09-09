@@ -100,6 +100,10 @@ export function createCategory(name) {
   return writeJson("/categories/", "POST", { name });
 }
 
+export function updateCategory(categoryId, name) {
+  return writeJson("/categories/" + categoryId, "PUT", { name });
+}
+
 export function deleteCategory(categoryId) {
   return apiRequest("/categories/" + categoryId, { method: "DELETE" });
 }
@@ -112,6 +116,10 @@ export function createTransaction(payload) {
   return writeJson("/transactions/", "POST", payload);
 }
 
+export function updateTransaction(transactionId, payload) {
+  return writeJson("/transactions/" + transactionId, "PUT", payload);
+}
+
 export function deleteTransaction(transactionId) {
   return apiRequest("/transactions/" + transactionId, { method: "DELETE" });
 }
@@ -122,6 +130,10 @@ export function getBudgets() {
 
 export function createBudget(payload) {
   return writeJson("/budgets/", "POST", payload);
+}
+
+export function updateBudget(budgetId, payload) {
+  return writeJson("/budgets/" + budgetId, "PUT", payload);
 }
 
 export function deleteBudget(budgetId) {

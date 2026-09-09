@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { sanitizeMoneyInput } from "../utils";
 import { EmptyState } from "./ui";
 
@@ -6,11 +7,33 @@ export default function TransactionModal({
   form,
   categories,
   actionLoading,
+  editing,
+  error,
   onFormChange,
   onSubmit,
   onClose,
   onGoToCategories
 }) {
+  const closeButtonRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (!visible) {
+      return undefined;
+    }
+
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") {
+        onCloseRef.current();
+      }
+    };
+
+    document.addEventListener("keydown", closeOnEscape);
+    closeButtonRef.current?.focus();
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [visible]);
+
   if (!visible) {
     return null;
   }
@@ -29,15 +52,21 @@ export default function TransactionModal({
       <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="transaction-title">
         <div className="modal-heading">
           <div>
-            <p className="eyebrow">NEW ENTRY</p>
-            <h2 id="transaction-title">Add transaction</h2>
+            <p className="eyebrow">{editing ? "EDIT ENTRY" : "NEW ENTRY"}</p>
+            <h2 id="transaction-title">{editing ? "Edit transaction" : "Add transaction"}</h2>
           </div>
-          <button className="icon-button close-button" onClick={onClose} aria-label="Close transaction form">
+          <button
+            className="icon-button close-button"
+            onClick={onClose}
+            aria-label="Close transaction form"
+            ref={closeButtonRef}
+          >
             ×
           </button>
         </div>
         {categories.length ? (
           <form className="modal-form" onSubmit={onSubmit}>
+            {error && <p className="modal-error" role="alert">{error}</p>}
             <div className="type-toggle">
               {[
                 ["expense", "Expense"],
@@ -149,7 +178,9 @@ export default function TransactionModal({
               />
             </label>
             <button className="button button-primary button-full" disabled={actionLoading === "transaction"}>
-              {actionLoading === "transaction" ? "Adding..." : "Add transaction"}
+              {actionLoading === "transaction"
+                ? editing ? "Saving..." : "Adding..."
+                : editing ? "Save changes" : "Add transaction"}
             </button>
           </form>
         ) : (

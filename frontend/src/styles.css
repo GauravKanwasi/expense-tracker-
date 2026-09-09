@@ -338,6 +338,14 @@ strong {
   gap: 0.6rem;
 }
 
+.mobile-logout {
+  display: none;
+  border: 0;
+  color: #687873;
+  background: transparent;
+  font-weight: 700;
+}
+
 .button {
   border: 0;
   border-radius: 10px;
@@ -424,6 +432,13 @@ strong {
   margin-bottom: 1.1rem;
   padding: 0.85rem 1rem;
   font-size: 0.82rem;
+}
+
+.loading-indicator {
+  margin-bottom: 0.85rem;
+  color: #4d7469;
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .alert-error {
@@ -784,6 +799,10 @@ strong {
   padding-top: 1rem;
 }
 
+.budget-history-toggle {
+  margin-top: 0.9rem;
+}
+
 .budget-row {
   display: grid;
   gap: 0.45rem;
@@ -833,6 +852,28 @@ strong {
   background: #fff0f0;
 }
 
+.text-button {
+  border: 0;
+  padding: 0.35rem;
+  color: #0b806b;
+  background: transparent;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.text-button:hover:not(:disabled) {
+  color: #075f50;
+  text-decoration: underline;
+}
+
+.row-actions,
+.chip-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.15rem;
+}
+
 .section-card {
   content-visibility: auto;
   contain-intrinsic-size: auto 520px;
@@ -844,10 +885,25 @@ strong {
   display: grid;
 }
 
+.transaction-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin: -0.2rem 0 1rem;
+}
+
+.transaction-filters select {
+  width: auto;
+  min-width: 145px;
+  padding: 0.5rem 1.8rem 0.5rem 0.65rem;
+  font-size: 0.75rem;
+}
+
 .transaction-header,
 .transaction-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1.4fr) minmax(110px, 0.8fr) minmax(100px, 0.75fr) minmax(115px, 0.7fr) 27px;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(110px, 0.8fr) minmax(100px, 0.75fr) minmax(115px, 0.7fr) minmax(66px, auto);
   align-items: center;
   gap: 0.75rem;
 }
@@ -1043,6 +1099,7 @@ strong {
 
 .category-form {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.6rem;
   margin-bottom: 1.2rem;
 }
@@ -1070,6 +1127,10 @@ strong {
   transition: border-color 180ms ease, background 180ms ease, transform 180ms var(--ease-out);
 }
 
+.chip-actions {
+  margin-left: auto;
+}
+
 @media (hover: hover) {
   .category-chip:hover {
     border-color: #bfe5d7;
@@ -1084,6 +1145,16 @@ strong {
   background: transparent;
   font-size: 1rem;
   line-height: 1;
+}
+
+.modal-error {
+  margin: 0;
+  border-radius: 9px;
+  color: #9a3540;
+  background: #fff0f1;
+  padding: 0.7rem 0.8rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
 }
 
 .chip-delete:hover:not(:disabled) {
@@ -1565,7 +1636,7 @@ strong {
 
   .transaction-header,
   .transaction-row {
-    grid-template-columns: minmax(170px, 1.3fr) minmax(100px, 0.8fr) minmax(95px, 0.75fr) minmax(105px, 0.7fr) 27px;
+    grid-template-columns: minmax(170px, 1.3fr) minmax(100px, 0.8fr) minmax(95px, 0.75fr) minmax(105px, 0.7fr) minmax(66px, auto);
   }
 }
 
@@ -1597,6 +1668,12 @@ strong {
 
   .sidebar-bottom {
     display: none;
+  }
+
+  .mobile-logout {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
   }
 
   .main-content {
@@ -1655,7 +1732,7 @@ strong {
     grid-row: 1 / span 2;
   }
 
-  .transaction-row .icon-button {
+  .transaction-row .row-actions {
     grid-column: 2;
     grid-row: 3;
     justify-self: end;

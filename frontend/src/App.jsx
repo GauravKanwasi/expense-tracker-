@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as api from "./api";
 import AnalyticsPanel from "./components/AnalyticsPanel";
 import AuthScreen from "./components/AuthScreen";
@@ -12,6 +12,7 @@ import {
   initials,
   isValidMoneyInput,
   localDate,
+  localDateTime,
   STAT_IDS,
   STAT_ORDER_KEY,
   TRANSACTIONS_PER_PAGE
@@ -24,7 +25,9 @@ function App() {
   const [authMode, setAuthMode] = useState("login");
   const [authForm, setAuthForm] = useState({ name: "", email: "", password: "" });
   const [data, setData] = useState(emptyData);
-  const [filters, setFilters] = useState({ start_date: "", end_date: "" });
+  const [filters, setFilters] = useState({
+    start_date: "", end_date: "", type: "", category_id: ""
+  });
   const [filterDraft, setFilterDraft] = useState({ start_date: "", end_date: "" });
   const [transactionForm, setTransactionForm] = useState(blankTransaction());
   const [categoryName, setCategoryName] = useState("");
@@ -35,6 +38,10 @@ function App() {
   });
   const [activeSection, setActiveSection] = useState("overview");
   const [showTransactionForm, setShowTransactionForm] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState(null);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [editingBudget, setEditingBudget] = useState(null);
+  const [transactionError, setTransactionError] = useState("");
   const [transactionPage, setTransactionPage] = useState(0);
   const [statOrder, setStatOrder] = useState(loadStatOrder);
   const [draggedStat, setDraggedStat] = useState("");
@@ -43,6 +50,7 @@ function App() {
   const [actionLoading, setActionLoading] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState("");
+  const lastFocusedElement = useRef(null);
 
   useEffect(() => {
     localStorage.setItem(STAT_ORDER_KEY, JSON.stringify(statOrder));
@@ -55,6 +63,8 @@ function App() {
     const query = {
       start_date: filters.start_date,
       end_date: filters.end_date,
+      type: filters.type,
+      category_id: filters.category_id,
       skip: transactionPage * TRANSACTIONS_PER_PAGE,
       limit: TRANSACTIONS_PER_PAGE
     };
@@ -91,7 +101,15 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [token, filters.start_date, filters.end_date, refreshKey, transactionPage]);
+  }, [
+    token,
+    filters.start_date,
+    filters.end_date,
+    filters.type,
+    filters.category_id,
+    refreshKey,
+    transactionPage
+  ]);
 
   function clearSession(message = "") {
     localStorage.removeItem(api.TOKEN_KEY);
@@ -141,43 +159,88 @@ function App() {
     }
   }
 
+  function openTransactionModal(transaction = null) {
+    lastFocusedElement.current = document.activeElement;
+    setTransactionError("");
+    setEditingTransaction(transaction);
+    setTransactionForm(transaction ? {
+      category_id: String(transaction.category_id),
+      amount: String(transaction.amount),
+      type: transaction.type,
+      debt_direction: transaction.debt_direction || "borrowed",
+      interest_amount: transaction.interest_amount || "",
+      investment_action: transaction.investment_action || "contribution",
+      description: transaction.description || "",
+      date: localDateTime(transaction.date)
+    } : blankTransaction(data.categories[0]?.id || ""));
+    setShowTransactionForm(true);
+  }
+
+  function closeTransactionModal() {
+    setShowTransactionForm(false);
+    setEditingTransaction(null);
+    setTransactionError("");
+    setTimeout(() => lastFocusedElement.current?.focus(), 0);
+  }
+
   async function handleTransactionSubmit(event) {
     event.preventDefault();
-    if (!transactionForm.category_id) return setError("Create a category before adding a transaction.");
+    if (!transactionForm.category_id) {
+      return setTransactionError("Create a category before adding a transaction.");
+    }
     if (!isValidMoneyInput(transactionForm.amount)) {
-      return setError("Enter an amount greater than zero with up to 29 digits and 2 decimals.");
+      return setTransactionError("Enter an amount greater than zero with up to 29 digits and 2 decimals.");
     }
     if (transactionForm.type === "debt" && transactionForm.interest_amount &&
       !isValidMoneyInput(transactionForm.interest_amount, true)) {
-      return setError("Enter a valid interest amount or leave it empty.");
+      return setTransactionError("Enter a valid interest amount or leave it empty.");
     }
 
     setActionLoading("transaction");
+    setTransactionError("");
     setError("");
+    const payload = {
+      category_id: Number(transactionForm.category_id),
+      amount: transactionForm.amount,
+      type: transactionForm.type,
+      debt_direction: transactionForm.type === "debt" ? transactionForm.debt_direction : null,
+      interest_amount: transactionForm.type === "debt" && transactionForm.interest_amount
+        ? transactionForm.interest_amount
+        : null,
+      investment_action: transactionForm.type === "investment"
+        ? transactionForm.investment_action
+        : null,
+      description: transactionForm.description.trim() || null,
+      date: transactionForm.date
+    };
     try {
-      await api.createTransaction({
-        category_id: Number(transactionForm.category_id),
-        amount: transactionForm.amount,
-        type: transactionForm.type,
-        debt_direction: transactionForm.type === "debt" ? transactionForm.debt_direction : null,
-        interest_amount: transactionForm.type === "debt" && transactionForm.interest_amount
-          ? transactionForm.interest_amount
-          : null,
-        investment_action: transactionForm.type === "investment"
-          ? transactionForm.investment_action
-          : null,
-        description: transactionForm.description.trim() || null,
-        date: transactionForm.date
-      });
-      setTransactionForm(blankTransaction(transactionForm.category_id));
-      setShowTransactionForm(false);
+      if (editingTransaction) {
+        await api.updateTransaction(editingTransaction.id, payload);
+      } else {
+        await api.createTransaction(payload);
+      }
+      closeTransactionModal();
       setTransactionPage(0);
       refresh();
     } catch (reason) {
-      showError(reason);
+      if (reason?.status === 401) {
+        showError(reason);
+      } else {
+        setTransactionError(reason?.message || "Unable to save this transaction.");
+      }
     } finally {
       setActionLoading("");
     }
+  }
+
+  function beginCategoryEdit(category) {
+    setEditingCategory(category);
+    setCategoryName(category.name);
+  }
+
+  function cancelCategoryEdit() {
+    setEditingCategory(null);
+    setCategoryName("");
   }
 
   async function handleCategorySubmit(event) {
@@ -188,8 +251,11 @@ function App() {
     setActionLoading("category");
     setError("");
     try {
-      const category = await api.createCategory(name);
+      const category = editingCategory
+        ? await api.updateCategory(editingCategory.id, name)
+        : await api.createCategory(name);
       setCategoryName("");
+      setEditingCategory(null);
       setTransactionForm((current) => current.category_id
         ? current
         : { ...current, category_id: String(category.id) });
@@ -201,6 +267,16 @@ function App() {
     }
   }
 
+  function beginBudgetEdit(budget) {
+    setEditingBudget(budget);
+    setBudgetForm({ year: budget.year, month: budget.month, amount: String(budget.amount) });
+  }
+
+  function cancelBudgetEdit() {
+    setEditingBudget(null);
+    setBudgetForm((current) => ({ ...current, amount: "" }));
+  }
+
   async function handleBudgetSubmit(event) {
     event.preventDefault();
     if (!isValidMoneyInput(budgetForm.amount)) {
@@ -210,11 +286,17 @@ function App() {
     setActionLoading("budget");
     setError("");
     try {
-      await api.createBudget({
+      const payload = {
         year: Number(budgetForm.year),
         month: Number(budgetForm.month),
         amount: budgetForm.amount
-      });
+      };
+      if (editingBudget) {
+        await api.updateBudget(editingBudget.id, payload);
+      } else {
+        await api.createBudget(payload);
+      }
+      setEditingBudget(null);
       setBudgetForm((current) => ({ ...current, amount: "" }));
       refresh();
     } catch (reason) {
@@ -269,7 +351,12 @@ function App() {
     }
     setError("");
     setTransactionPage(0);
-    setFilters(nextFilters);
+    setFilters((current) => ({ ...current, ...nextFilters }));
+  }
+
+  function updateTransactionFilters(changes) {
+    setTransactionPage(0);
+    setFilters((current) => ({ ...current, ...changes }));
   }
 
   function applyDatePreset(preset) {
@@ -353,9 +440,10 @@ function App() {
             <button className="button button-ghost" onClick={refresh} disabled={loading}>
               {loading ? "Refreshing..." : "Refresh"}
             </button>
-            <button className="button button-primary button-glow" onClick={() => setShowTransactionForm(true)}>
+            <button className="button button-primary button-glow" onClick={() => openTransactionModal()}>
               <span className="button-plus">+</span> Add transaction
             </button>
+            <button className="mobile-logout" onClick={signOut}>Log out</button>
             <div className="avatar" title={user?.email}>{initials(user?.name)}</div>
           </div>
         </header>
@@ -363,6 +451,7 @@ function App() {
         {error && <div className="alert alert-error" role="alert">
           <span>{error}</span><button onClick={() => setError("")} aria-label="Dismiss error">x</button>
         </div>}
+        {loading && <div className="loading-indicator" role="status">Loading your workspace…</div>}
 
         <section className="filter-card">
           <div><p className="eyebrow">DATE RANGE</p><strong>Review your activity</strong></div>
@@ -394,10 +483,13 @@ function App() {
           <BudgetsPanel
             budgets={data.budgets}
             form={budgetForm}
+            editing={editingBudget}
             onFormChange={setBudgetForm}
             actionLoading={actionLoading}
             onSubmit={handleBudgetSubmit}
             onDelete={(id) => removeItem("budget", id, "Delete this budget?")}
+            onEdit={beginBudgetEdit}
+            onCancelEdit={cancelBudgetEdit}
           />
         </AnalyticsPanel>
 
@@ -408,18 +500,24 @@ function App() {
           page={transactionPage}
           pageSize={TRANSACTIONS_PER_PAGE}
           actionLoading={actionLoading}
+          filters={filters}
           onDelete={(id) => removeItem("delete", id, "Delete this transaction?")}
-          onAdd={() => setShowTransactionForm(true)}
+          onEdit={openTransactionModal}
+          onAdd={() => openTransactionModal()}
           onPageChange={setTransactionPage}
+          onFiltersChange={updateTransactionFilters}
         />
 
         <CategoriesPanel
           categories={data.categories}
           categoryName={categoryName}
+          editing={editingCategory}
           onCategoryNameChange={setCategoryName}
           actionLoading={actionLoading}
           onSubmit={handleCategorySubmit}
           onDelete={(id) => removeItem("category", id, "Delete this category?")}
+          onEdit={beginCategoryEdit}
+          onCancelEdit={cancelCategoryEdit}
         />
 
         <footer className="page-footer">
@@ -432,10 +530,12 @@ function App() {
         form={transactionForm}
         categories={data.categories}
         actionLoading={actionLoading}
-        onFormChange={setTransactionForm}
+        editing={editingTransaction}
+        error={transactionError}
+        onFormChange={(form) => { setTransactionForm(form); setTransactionError(""); }}
         onSubmit={handleTransactionSubmit}
-        onClose={() => setShowTransactionForm(false)}
-        onGoToCategories={() => { setShowTransactionForm(false); goTo("categories"); }}
+        onClose={closeTransactionModal}
+        onGoToCategories={() => { closeTransactionModal(); goTo("categories"); }}
       />
     </div>
   );
