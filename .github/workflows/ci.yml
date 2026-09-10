@@ -21,6 +21,50 @@ jobs:
         run: python -m alembic upgrade head
       - name: Run API tests
         run: pytest -q -p no:cacheprovider
+      - name: Lint Python
+        run: ruff check .
+      - name: Check Python formatting
+        run: ruff format --check .
+
+  backend-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ledgerly
+          POSTGRES_PASSWORD: ledgerly-ci-password
+          POSTGRES_DB: ledgerly
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ledgerly -d ledgerly"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+psycopg://ledgerly:ledgerly-ci-password@localhost:5432/ledgerly
+      TEST_DATABASE_URL: postgresql+psycopg://ledgerly:ledgerly-ci-password@localhost:5432/ledgerly
+      JWT_SECRET_KEY: ci-test-secret-that-is-at-least-32-bytes
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend dependencies
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Verify PostgreSQL migration
+        run: python -m alembic upgrade head
+      - name: Run PostgreSQL API tests
+        run: pytest -q -p no:cacheprovider
+
+  secrets:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gitleaks/gitleaks-action@v2
 
   frontend:
     runs-on: ubuntu-latest
@@ -34,6 +78,12 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
+      - name: Run frontend tests
+        working-directory: frontend
+        run: npm test
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
       - name: Build frontend
         working-directory: frontend
         run: npm run build

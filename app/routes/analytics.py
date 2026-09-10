@@ -7,7 +7,6 @@ from ..database import get_db
 from ..finance import (
     ZERO,
     is_complete_budget_month,
-    money,
     money_difference,
     money_sum,
     month_bounds,
@@ -20,11 +19,8 @@ from ..model import Budget, Category, Transaction, User
 from ..schemas import AnalyticsSummaryResponse, CategoryTotalResponse
 from ..security import get_current_user
 
+router = APIRouter(prefix="/analytics", tags=["analytics"])
 
-router = APIRouter(
-    prefix="/analytics",
-    tags=["analytics"]
-)
 
 def date_filters(start_date: date | None, end_date: date | None, timezone_name: str):
     if start_date is not None and end_date is not None and start_date > end_date:
@@ -45,10 +41,15 @@ def full_month_budgets(budgets, start_date, end_date):
     if start_date is None and end_date is None:
         return budgets, "all_time"
     selected = [
-        budget for budget in budgets
+        budget
+        for budget in budgets
         if is_complete_budget_month(budget.year, budget.month, start_date, end_date)
     ]
-    scope = "complete_months" if range_contains_complete_month(start_date, end_date) else "partial_range"
+    scope = (
+        "complete_months"
+        if range_contains_complete_month(start_date, end_date)
+        else "partial_range"
+    )
     return selected, scope
 
 
@@ -59,12 +60,16 @@ def monthly_expense_totals(db: Session, budgets, timezone_name: str):
     zone = user_zone(timezone_name)
     bounds = [month_bounds(budget.year, budget.month, zone) for budget in budgets]
     expected_months = {(budget.year, budget.month) for budget in budgets}
-    rows = db.query(Transaction.date, Transaction.amount).filter(
-        Transaction.user_id == budgets[0].user_id,
-        Transaction.type == "expense",
-        Transaction.date >= min(start for start, _ in bounds),
-        Transaction.date < max(end for _, end in bounds),
-    ).all()
+    rows = (
+        db.query(Transaction.date, Transaction.amount)
+        .filter(
+            Transaction.user_id == budgets[0].user_id,
+            Transaction.type == "expense",
+            Transaction.date >= min(start for start, _ in bounds),
+            Transaction.date < max(end for _, end in bounds),
+        )
+        .all()
+    )
     totals = {key: ZERO for key in expected_months}
     for occurred_at, amount in rows:
         key = month_key(occurred_at, zone)
@@ -74,49 +79,48 @@ def monthly_expense_totals(db: Session, budgets, timezone_name: str):
 
 
 @router.get(
-    "/summary",
-    response_model=AnalyticsSummaryResponse,
-    summary="Get income, expenses, and balance"
+    "/summary", response_model=AnalyticsSummaryResponse, summary="Get income, expenses, and balance"
 )
 def get_summary(
-    start_date: date | None = Query(
-        default=None,
-        description="Optional first date to include."
-    ),
-    end_date: date | None = Query(
-        default=None,
-        description="Optional last date to include."
-    ),
+    start_date: date | None = Query(default=None, description="Optional first date to include."),
+    end_date: date | None = Query(default=None, description="Optional last date to include."),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     filters = [
         Transaction.user_id == current_user.id,
         *date_filters(start_date, end_date, current_user.timezone),
     ]
     transactions = db.query(Transaction).filter(*filters).all()
-    total = lambda type_name: money_sum(
-        transaction.amount for transaction in transactions if transaction.type == type_name
-    )
+
+    def total(type_name: str):
+        return money_sum(
+            transaction.amount for transaction in transactions if transaction.type == type_name
+        )
+
     total_income = total("income")
     total_expenses = total("expense")
     debt_borrowed = money_sum(
-        transaction.amount for transaction in transactions
+        transaction.amount
+        for transaction in transactions
         if transaction.type == "debt" and transaction.debt_direction == "borrowed"
     )
     debt_lent = money_sum(
-        transaction.amount for transaction in transactions
+        transaction.amount
+        for transaction in transactions
         if transaction.type == "debt" and transaction.debt_direction == "lent"
     )
     debt_interest = money_sum(
         transaction.interest_amount for transaction in transactions if transaction.type == "debt"
     )
     investment_contributions = money_sum(
-        transaction.amount for transaction in transactions
+        transaction.amount
+        for transaction in transactions
         if transaction.type == "investment" and transaction.investment_action == "contribution"
     )
     investment_withdrawals = money_sum(
-        transaction.amount for transaction in transactions
+        transaction.amount
+        for transaction in transactions
         if transaction.type == "investment" and transaction.investment_action == "withdrawal"
     )
 
@@ -163,30 +167,27 @@ def get_summary(
 @router.get(
     "/by-category",
     response_model=list[CategoryTotalResponse],
-    summary="Get expenses grouped by category"
+    summary="Get expenses grouped by category",
 )
 def get_totals_by_category(
-    start_date: date | None = Query(
-        default=None,
-        description="Optional first date to include."
-    ),
-    end_date: date | None = Query(
-        default=None,
-        description="Optional last date to include."
-    ),
+    start_date: date | None = Query(default=None, description="Optional first date to include."),
+    end_date: date | None = Query(default=None, description="Optional last date to include."),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     filters = [
         Transaction.user_id == current_user.id,
         Transaction.type == "expense",
         Category.user_id == current_user.id,
-        *date_filters(start_date, end_date, current_user.timezone)
+        *date_filters(start_date, end_date, current_user.timezone),
     ]
 
-    rows = db.query(Category.id, Category.name, Transaction.amount).join(
-        Transaction, Category.id == Transaction.category_id
-    ).filter(*filters).all()
+    rows = (
+        db.query(Category.id, Category.name, Transaction.amount)
+        .join(Transaction, Category.id == Transaction.category_id)
+        .filter(*filters)
+        .all()
+    )
     totals = {}
     for category_id, category_name, amount in rows:
         existing_name, existing_total = totals.get(category_id, (category_name, ZERO))

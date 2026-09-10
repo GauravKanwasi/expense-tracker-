@@ -4,7 +4,7 @@
   <p>
     <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12">
     <img src="https://img.shields.io/badge/FastAPI-REST_API-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI REST API">
-    <img src="https://img.shields.io/badge/tests-21_passing-2ea44f?style=for-the-badge" alt="Twenty-one tests passing">
+    <img src="https://img.shields.io/badge/tests-30_passing-2ea44f?style=for-the-badge" alt="Thirty tests passing">
   </p>
   <p>
     <a href="http://127.0.0.1:8000/docs">Open Swagger docs</a> |
@@ -14,7 +14,7 @@
     <tr>
       <td><strong>Backend</strong><br>Ready for frontend integration</td>
       <td><strong>Interactive docs</strong><br>Swagger UI at <code>/docs</code></td>
-      <td><strong>Tests</strong><br>21 passing</td>
+      <td><strong>Tests</strong><br>22 API + 8 frontend checks</td>
     </tr>
   </table>
 </div>
@@ -77,12 +77,13 @@ Once authorized, create a category before adding a transaction. The transaction 
 - User registration and current-user lookup.
 - React/Vite dashboard with login, registration, transactions, categories, budgets, and analytics.
 - Dashboard editing for transactions, categories, and budgets; type/category transaction filters; and expandable budget history.
-- Lightweight CSS-first motion for buttons, lists, and the sign-in background; no animation library is shipped to users.
+- Animate.css gives the sign-in card a small one-time entrance, while Motion adds reduced-motion-aware modal and list transitions. Motion features load on demand instead of delaying the dashboard’s first render.
 - Separate debt and investment tracking with debt direction and interest.
 - Date presets and apply-on-demand filters keep the dashboard responsive.
 - User-owned categories with duplicate-name protection.
 - Transaction create, list, filter, update, and delete.
 - Transaction filters for type, category, date range, and paginated responses with totals.
+- Weekly or monthly recurring schedules for income, expenses, debt, and investments. Generating due entries is explicit and idempotent, so a schedule never silently changes the balance or creates duplicate entries.
 - One monthly budget per user and month.
 - Budget spending, remaining limits, and available-after-plans calculations.
 - Analytics for cash flow, debt, investments, and totals grouped by category.
@@ -112,6 +113,7 @@ app/
 |   |-- transactions.py        Transaction CRUD and filters
 |   |-- budgets.py             Monthly budget CRUD
 |   |-- analytics.py           Summary and category analytics
+|   |-- recurring_transactions.py  Recurring schedule CRUD and due-entry generation
 migrations/
 |-- env.py                     Alembic migration environment
 |-- versions/                  Current schema and query-index revisions
@@ -127,6 +129,8 @@ frontend/
     |-- api.js                API client and token handling
     |-- App.jsx               Application state and panel orchestration
     |-- components/           Focused auth, budget, category, analytics, and transaction UI
+    |-- motionFeatures.js     Deferred Motion feature bundle
+    |-- test/                 Frontend test setup and app behavior checks
     |-- utils.js              Shared date and exact-money helpers
     |-- main.jsx              React entry point
     `-- styles.css            Responsive application styles
@@ -146,7 +150,7 @@ requirements-dev.txt          Development and test dependencies
 
 ### Prerequisites
 
-Install Python 3.12 or newer and PostgreSQL. Create a PostgreSQL database named `expense_tracker`, then put your local database password in `.env`.
+Install Python 3.12 or newer, Node.js 22, and PostgreSQL. Create a PostgreSQL database named `expense_tracker`, then put your local database password in `.env`. The included `.nvmrc` requests Node 22 when you use nvm.
 
 These commands are for PowerShell.
 
@@ -202,6 +206,26 @@ Open http://localhost:5173. The frontend reads <code>VITE_API_URL</code> from <c
 
 This environment uses <code>npm.cmd</code> because PowerShell may block the <code>npm.ps1</code> script. If regular <code>npm</code> works on your machine, it is also fine.
 
+### macOS and Linux
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+cp .env.example .env
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+In a second terminal:
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+npm run dev
+```
+
 ## Use the interactive API docs
 
 Swagger is the easiest way to test the backend without writing frontend code.
@@ -225,6 +249,8 @@ POST /auth/logout             Revoke the current token when finished
 GET  /users/me                 Confirm authentication
 POST /categories/             Create a category
 POST /transactions/            Add income or expense
+POST /recurring-transactions/ Create a repeat schedule
+POST /recurring-transactions/generate  Generate due entries
 POST /budgets/                Add a monthly budget
 GET  /analytics/summary       See totals
 GET  /analytics/by-category   See category totals
@@ -252,6 +278,10 @@ All endpoints marked with a lock require a Bearer token.
 | Transactions | GET | `/transactions/{transaction_id}` | Get one transaction | Yes |
 | Transactions | PUT | `/transactions/{transaction_id}` | Update a transaction | Yes |
 | Transactions | DELETE | `/transactions/{transaction_id}` | Delete a transaction | Yes |
+| Recurring | GET | `/recurring-transactions/` | List recurring schedules | Yes |
+| Recurring | POST | `/recurring-transactions/` | Create a recurring schedule | Yes |
+| Recurring | POST | `/recurring-transactions/generate` | Create entries due through a date | Yes |
+| Recurring | GET/PUT/DELETE | `/recurring-transactions/{rule_id}` | Manage one schedule | Yes |
 | Budgets | GET | `/budgets/` | List monthly budgets | Yes |
 | Budgets | POST | `/budgets/` | Create a monthly budget | Yes |
 | Budgets | GET | `/budgets/{budget_id}` | Get one budget | Yes |
@@ -366,6 +396,32 @@ Use `debt_direction` as `borrowed` or `lent`. Debt is tracked separately from th
 
 Use `investment_action` as `contribution` or `withdrawal`. Investments are not counted as ordinary expenses.
 
+### Create a recurring schedule
+
+```json
+{
+  "category_id": 5,
+  "amount": 499.99,
+  "type": "expense",
+  "description": "Music subscription",
+  "frequency": "monthly",
+  "next_due_at": "2026-09-10T09:00:00",
+  "active": true
+}
+```
+
+`frequency` is `weekly` or `monthly`. The first due datetime is interpreted in the user's financial timezone, then stored in UTC. A schedule is only a rule: call `POST /recurring-transactions/generate` or use **Generate due entries** in the dashboard to create normal transactions. The generated transaction date plus its schedule ID are unique, preventing the same due entry from being created twice.
+
+### Generate recurring entries
+
+```json
+{
+  "through_date": "2026-09-30"
+}
+```
+
+Omit `through_date` to generate entries due through today in the user's financial timezone. A single request generates at most 120 historical entries to keep a mistaken old schedule from creating an unbounded request.
+
 
 ### Create a monthly budget
 
@@ -418,6 +474,7 @@ Use this checklist while testing in Swagger:
 - [ ] Add one borrowed debt with an optional interest amount.
 - [ ] Add one lent debt and confirm net debt can be negative.
 - [ ] Add one investment contribution or withdrawal.
+- [ ] Create a recurring schedule and generate its due entries twice; confirm the second run adds no duplicate.
 - [ ] List transactions and try a filter.
 - [ ] Create a monthly budget.
 - [ ] Read the analytics summary.
@@ -440,13 +497,23 @@ Successful CRUD requests currently return status <code>200</code>.
 
 ## Test the backend
 
-Run this from the project folder with the virtual environment active:
+Run these from the project folder with the virtual environment active:
 
 ~~~powershell
 pytest -q -p no:cacheprovider
+ruff check .
+ruff format --check .
 ~~~
 
 The tests use an isolated SQLite database, so normal test runs do not change your PostgreSQL data. The `-p no:cacheprovider` option avoids a local pytest cache permission warning on this machine.
+
+Run the frontend checks from `frontend/`:
+
+~~~powershell
+npm.cmd test
+npm.cmd run lint
+npm.cmd run build
+~~~
 
 ## Security and production checklist
 
@@ -474,4 +541,4 @@ The login throttle and token revocation list are intentionally in memory for thi
 
 ## License
 
-License: to be decided.
+[MIT](LICENSE)

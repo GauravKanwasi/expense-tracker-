@@ -1,4 +1,6 @@
 import { useEffect, useRef } from "react";
+import { useReducedMotion } from "motion/react";
+import * as m from "motion/react-m";
 import { sanitizeMoneyInput } from "../utils";
 import { EmptyState } from "./ui";
 
@@ -16,6 +18,7 @@ export default function TransactionModal({
 }) {
   const closeButtonRef = useRef(null);
   const onCloseRef = useRef(onClose);
+  const shouldReduceMotion = useReducedMotion();
   onCloseRef.current = onClose;
 
   useEffect(() => {
@@ -41,15 +44,28 @@ export default function TransactionModal({
   const updateForm = (field, value) => onFormChange({ ...form, [field]: value });
 
   return (
-    <div
+    <m.div
       className="modal-backdrop"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: shouldReduceMotion ? 0 : 0.16 }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
         }
       }}
     >
-      <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="transaction-title">
+      <m.div
+        className="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="transaction-title"
+        initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 12, scale: shouldReduceMotion ? 1 : 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: shouldReduceMotion ? 0 : 8, scale: shouldReduceMotion ? 1 : 0.985 }}
+        transition={{ duration: shouldReduceMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
+      >
         <div className="modal-heading">
           <div>
             <p className="eyebrow">{editing ? "EDIT ENTRY" : "NEW ENTRY"}</p>
@@ -190,7 +206,7 @@ export default function TransactionModal({
             action={<button className="button button-dark" onClick={onGoToCategories}>Go to categories</button>}
           />
         )}
-      </div>
-    </div>
+      </m.div>
+    </m.div>
   );
 }

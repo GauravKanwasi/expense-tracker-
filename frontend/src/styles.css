@@ -716,8 +716,6 @@ strong {
 }
 
 .breakdown-row,
-.budget-row,
-.transaction-row,
 .category-chip {
   animation: list-item-enter 420ms calc(var(--motion-index, 0) * 55ms) var(--ease-out) both;
 }
@@ -885,6 +883,75 @@ strong {
   display: grid;
 }
 
+.recurring-form {
+  display: grid;
+  gap: 0.8rem;
+  margin-bottom: 1.2rem;
+}
+
+.recurring-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.recurring-grid input,
+.recurring-grid select,
+.recurring-action select {
+  padding: 0.62rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+.recurring-action {
+  width: min(100%, 250px);
+}
+
+.recurring-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.recurring-list {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.8rem;
+}
+
+.recurring-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(110px, auto) auto;
+  align-items: center;
+  gap: 0.65rem;
+  border-bottom: 1px solid #edf2f0;
+  padding: 0.65rem 0;
+}
+
+.recurring-row > div:nth-child(2) {
+  min-width: 0;
+}
+
+.recurring-row strong:not(.transaction-amount) {
+  display: block;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recurring-row small {
+  display: block;
+  margin-top: 0.16rem;
+  color: #84928e;
+  font-size: 0.68rem;
+}
+
 .transaction-filters {
   display: flex;
   flex-wrap: wrap;
@@ -961,7 +1028,6 @@ strong {
   .transaction-row:hover {
     border-radius: 10px;
     background: #f8fbfa;
-    transform: translateX(4px);
   }
 }
 
@@ -1293,7 +1359,6 @@ strong {
   padding: 1rem;
   background: rgba(7, 25, 23, 0.58);
   backdrop-filter: blur(7px);
-  animation: backdrop-in 180ms ease both;
 }
 
 .modal-card {
@@ -1302,7 +1367,6 @@ strong {
   padding: 1.5rem;
   background: #ffffff;
   box-shadow: 0 30px 90px rgba(3, 18, 16, 0.3);
-  animation: modal-in 220ms ease both;
 }
 
 @keyframes modal-in {
@@ -1634,9 +1698,27 @@ strong {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .recurring-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .transaction-header,
   .transaction-row {
     grid-template-columns: minmax(170px, 1.3fr) minmax(100px, 0.8fr) minmax(95px, 0.75fr) minmax(105px, 0.7fr) minmax(66px, auto);
+  }
+
+  .recurring-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .recurring-row .transaction-amount {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+
+  .recurring-row .row-actions {
+    grid-column: 2 / -1;
+    justify-self: end;
   }
 }
 
@@ -1795,6 +1877,10 @@ strong {
 
   .form-row {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .recurring-grid {
+    grid-template-columns: 1fr;
   }
 
   .amount-field {

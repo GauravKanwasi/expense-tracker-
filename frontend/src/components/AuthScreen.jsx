@@ -38,7 +38,7 @@ export default function AuthScreen({
       </section>
 
       <section className="auth-panel">
-        <div className="auth-card">
+        <div className="auth-card animate__animated animate__fadeInUp animate__faster">
           <p className="eyebrow">{isRegister ? "GET STARTED" : "WELCOME BACK"}</p>
           <h2>{isRegister ? "Create your workspace" : "Sign in to Ledgerly"}</h2>
           <p className="auth-subtitle">

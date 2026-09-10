@@ -10,13 +10,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..model import User
 from ..schemas import MessageResponse, TokenResponse
-from ..security import (
-    create_access_token,
-    oauth2_scheme,
-    revoke_access_token,
-    verify_password
-)
-
+from ..security import create_access_token, oauth2_scheme, revoke_access_token, verify_password
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 MAX_LOGIN_ATTEMPTS = 5
@@ -40,7 +34,8 @@ def check_login_rate_limit(key: str) -> None:
 
     with login_attempts_lock:
         attempts = [
-            attempt for attempt in failed_login_attempts.get(key, [])
+            attempt
+            for attempt in failed_login_attempts.get(key, [])
             if now - attempt < LOGIN_WINDOW_SECONDS
         ]
         failed_login_attempts[key] = attempts
@@ -50,7 +45,7 @@ def check_login_rate_limit(key: str) -> None:
             raise HTTPException(
                 status_code=429,
                 detail="Too many login attempts. Try again shortly.",
-                headers={"Retry-After": str(retry_after)}
+                headers={"Retry-After": str(retry_after)},
             )
 
 
@@ -71,51 +66,33 @@ def clear_failed_login(key: str) -> None:
     description=(
         "Send the registered email in the OAuth2 `username` field "
         "and the password in the `password` field."
-    )
+    ),
 )
 def login(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     email = form_data.username.strip().casefold()
     attempt_key = login_attempt_key(request, email)
     check_login_rate_limit(attempt_key)
-    existing_user = db.query(User).filter(
-        func.lower(User.email) == email
-    ).first()
+    existing_user = db.query(User).filter(func.lower(User.email) == email).first()
 
     if not existing_user:
         record_failed_login(attempt_key)
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid email or password"
-        )
+        raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    if not verify_password(
-        form_data.password,
-        existing_user.password_hash
-    ):
+    if not verify_password(form_data.password, existing_user.password_hash):
         record_failed_login(attempt_key)
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid email or password"
-        )
+        raise HTTPException(status_code=401, detail="Invalid email or password")
 
     clear_failed_login(attempt_key)
     access_token = create_access_token(existing_user.id)
 
-    return {
-        "access_token": access_token,
-        "token_type": "bearer"
-    }
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
-@router.post(
-    "/logout",
-    response_model=MessageResponse,
-    summary="Revoke the current access token"
-)
+@router.post("/logout", response_model=MessageResponse, summary="Revoke the current access token")
 def logout(token: str = Depends(oauth2_scheme)):
     revoke_access_token(token)
     return {"message": "Logged out successfully"}

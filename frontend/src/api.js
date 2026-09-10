@@ -124,6 +124,26 @@ export function deleteTransaction(transactionId) {
   return apiRequest("/transactions/" + transactionId, { method: "DELETE" });
 }
 
+export function getRecurringTransactions() {
+  return apiRequest("/recurring-transactions/");
+}
+
+export function createRecurringTransaction(payload) {
+  return writeJson("/recurring-transactions/", "POST", payload);
+}
+
+export function updateRecurringTransaction(ruleId, payload) {
+  return writeJson("/recurring-transactions/" + ruleId, "PUT", payload);
+}
+
+export function deleteRecurringTransaction(ruleId) {
+  return apiRequest("/recurring-transactions/" + ruleId, { method: "DELETE" });
+}
+
+export function generateRecurringTransactions(payload = {}) {
+  return writeJson("/recurring-transactions/generate", "POST", payload);
+}
+
 export function getBudgets() {
   return apiRequest("/budgets/");
 }

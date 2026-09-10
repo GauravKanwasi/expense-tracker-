@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, LazyMotion, MotionConfig } from "motion/react";
 import * as api from "./api";
 import AnalyticsPanel from "./components/AnalyticsPanel";
 import AuthScreen from "./components/AuthScreen";
 import BudgetsPanel from "./components/BudgetsPanel";
 import CategoriesPanel from "./components/CategoriesPanel";
+import RecurringPanel from "./components/RecurringPanel";
 import TransactionModal from "./components/TransactionModal";
 import TransactionsPanel from "./components/TransactionsPanel";
 import {
   blankTransaction,
+  blankRecurring,
   emptyData,
   initials,
   isValidMoneyInput,
@@ -18,6 +21,8 @@ import {
   TRANSACTIONS_PER_PAGE
 } from "./utils";
 import "./styles.css";
+
+const loadMotionFeatures = () => import("./motionFeatures").then((module) => module.default);
 
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem(api.TOKEN_KEY));
@@ -30,6 +35,7 @@ function App() {
   });
   const [filterDraft, setFilterDraft] = useState({ start_date: "", end_date: "" });
   const [transactionForm, setTransactionForm] = useState(blankTransaction());
+  const [recurringForm, setRecurringForm] = useState(blankRecurring());
   const [categoryName, setCategoryName] = useState("");
   const [budgetForm, setBudgetForm] = useState({
     year: new Date().getFullYear(),
@@ -78,9 +84,10 @@ function App() {
       api.getTransactions(query),
       api.getSummary(query),
       api.getCategoryTotals(query),
-      api.getBudgets()
+      api.getBudgets(),
+      api.getRecurringTransactions()
     ])
-      .then(([currentUser, categories, transactions, summary, categoryTotals, budgets]) => {
+      .then(([currentUser, categories, transactions, summary, categoryTotals, budgets, recurring]) => {
         if (cancelled) return;
         setUser(currentUser);
         update({
@@ -89,9 +96,13 @@ function App() {
           transactions: transactions.items,
           transactionTotal: transactions.total,
           categoryTotals,
-          budgets
+          budgets,
+          recurring
         });
         setTransactionForm((current) => current.category_id || !categories.length
+          ? current
+          : { ...current, category_id: String(categories[0].id) });
+        setRecurringForm((current) => current.category_id || !categories.length
           ? current
           : { ...current, category_id: String(categories[0].id) });
       })
@@ -306,6 +317,74 @@ function App() {
     }
   }
 
+  function recurringPayload(source, active = source.active) {
+    return {
+      category_id: Number(source.category_id),
+      amount: source.amount,
+      type: source.type,
+      description: source.description.trim?.() || null,
+      debt_direction: source.type === "debt" ? source.debt_direction : null,
+      interest_amount: source.type === "debt" && source.interest_amount
+        ? source.interest_amount
+        : null,
+      investment_action: source.type === "investment" ? source.investment_action : null,
+      frequency: source.frequency,
+      next_due_at: source.next_due_at,
+      active
+    };
+  }
+
+  async function handleRecurringSubmit(event) {
+    event.preventDefault();
+    if (!recurringForm.category_id) return setError("Choose a category for this schedule.");
+    if (!isValidMoneyInput(recurringForm.amount)) {
+      return setError("Enter a recurring amount greater than zero with up to 29 digits and 2 decimals.");
+    }
+    if (recurringForm.type === "debt" && recurringForm.interest_amount &&
+      !isValidMoneyInput(recurringForm.interest_amount, true)) {
+      return setError("Enter a valid recurring interest amount or leave it empty.");
+    }
+
+    setActionLoading("recurring");
+    setError("");
+    try {
+      await api.createRecurringTransaction(recurringPayload(recurringForm));
+      setRecurringForm(blankRecurring(data.categories[0]?.id || ""));
+      refresh();
+    } catch (reason) {
+      showError(reason);
+    } finally {
+      setActionLoading("");
+    }
+  }
+
+  async function generateRecurringEntries() {
+    setActionLoading("generate-recurring");
+    setError("");
+    try {
+      await api.generateRecurringTransactions();
+      setTransactionPage(0);
+      refresh();
+    } catch (reason) {
+      showError(reason);
+    } finally {
+      setActionLoading("");
+    }
+  }
+
+  async function toggleRecurring(rule) {
+    setActionLoading("recurring-" + rule.id);
+    setError("");
+    try {
+      await api.updateRecurringTransaction(rule.id, recurringPayload(rule, !rule.active));
+      refresh();
+    } catch (reason) {
+      showError(reason);
+    } finally {
+      setActionLoading("");
+    }
+  }
+
   async function removeItem(kind, id, message) {
     if (!window.confirm(message)) return;
 
@@ -320,6 +399,8 @@ function App() {
         }
       } else if (kind === "category") {
         await api.deleteCategory(id);
+      } else if (kind === "recurring") {
+        await api.deleteRecurringTransaction(id);
       } else {
         await api.deleteBudget(id);
         setData((current) => ({
@@ -403,6 +484,8 @@ function App() {
   }
 
   return (
+    <LazyMotion features={loadMotionFeatures}>
+      <MotionConfig reducedMotion="user">
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
@@ -413,7 +496,8 @@ function App() {
           {[
             ["overview", "Overview", "01"],
             ["transactions", "Transactions", "02"],
-            ["categories", "Categories", "03"]
+            ["categories", "Categories", "03"],
+            ["recurring", "Schedules", "04"]
           ].map(([section, label, count]) => (
             <button
               key={section}
@@ -493,6 +577,18 @@ function App() {
           />
         </AnalyticsPanel>
 
+        <RecurringPanel
+          recurring={data.recurring}
+          categories={data.categories}
+          form={recurringForm}
+          actionLoading={actionLoading}
+          onFormChange={setRecurringForm}
+          onSubmit={handleRecurringSubmit}
+          onGenerate={generateRecurringEntries}
+          onToggle={toggleRecurring}
+          onDelete={(id) => removeItem("recurring", id, "Delete this recurring schedule?")}
+        />
+
         <TransactionsPanel
           transactions={data.transactions}
           total={data.transactionTotal}
@@ -525,19 +621,26 @@ function App() {
         </footer>
       </main>
 
-      <TransactionModal
-        visible={showTransactionForm}
-        form={transactionForm}
-        categories={data.categories}
-        actionLoading={actionLoading}
-        editing={editingTransaction}
-        error={transactionError}
-        onFormChange={(form) => { setTransactionForm(form); setTransactionError(""); }}
-        onSubmit={handleTransactionSubmit}
-        onClose={closeTransactionModal}
-        onGoToCategories={() => { closeTransactionModal(); goTo("categories"); }}
-      />
+      <AnimatePresence>
+        {showTransactionForm && (
+          <TransactionModal
+            key="transaction-modal"
+            visible
+            form={transactionForm}
+            categories={data.categories}
+            actionLoading={actionLoading}
+            editing={editingTransaction}
+            error={transactionError}
+            onFormChange={(form) => { setTransactionForm(form); setTransactionError(""); }}
+            onSubmit={handleTransactionSubmit}
+            onClose={closeTransactionModal}
+            onGoToCategories={() => { closeTransactionModal(); goTo("categories"); }}
+          />
+        )}
+      </AnimatePresence>
     </div>
+      </MotionConfig>
+    </LazyMotion>
   );
 }
 

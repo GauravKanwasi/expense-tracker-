@@ -2,5 +2,12 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
-  plugins: [react()]
+  plugins: [react()],
+  test: {
+    environment: "jsdom",
+    setupFiles: "./src/test/setup.js",
+    css: true,
+    pool: "threads",
+    singleThread: true
+  }
 });

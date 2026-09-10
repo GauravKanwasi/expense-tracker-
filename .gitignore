@@ -8,3 +8,11 @@ __pycache__/
 .pytest_cache/
 frontend/.vite/
 expense-tracker-share.zip
+*.pem
+*.key
+*.p12
+*.pfx
+*.dump
+*.bak
+*.sqlite
+*.sqlite3

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { AnimatePresence, useReducedMotion } from "motion/react";
+import * as m from "motion/react-m";
 import {
   formatMoney,
   isNegativeMoney,
@@ -21,6 +23,7 @@ export default function BudgetsPanel({
 }) {
   const [showAll, setShowAll] = useState(false);
   const visibleBudgets = showAll ? budgets : budgets.slice(0, 3);
+  const shouldReduceMotion = useReducedMotion();
 
   return (
     <article className="card budget-card">
@@ -85,17 +88,25 @@ export default function BudgetsPanel({
       </form>
 
       <div className="budget-list">
-        {visibleBudgets.map((budget, motionIndex) => {
+        <AnimatePresence initial={false}>
+          {visibleBudgets.map((budget, motionIndex) => {
           const spent = budget.spent ?? "0";
           const remaining = budget.remaining ?? "0";
           const percentage = moneyPercent(spent, budget.amount);
           const overBudget = isNegativeMoney(remaining);
 
           return (
-            <div
+            <m.div
+              layout="position"
               className="budget-row"
               key={budget.id}
-              style={{ "--motion-index": motionIndex }}
+              initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+              transition={{
+                duration: shouldReduceMotion ? 0 : 0.18,
+                delay: shouldReduceMotion ? 0 : Math.min(motionIndex, 5) * 0.035
+              }}
             >
               <div className="budget-row-top">
                 <span>{budget.year}-{String(budget.month).padStart(2, "0")}</span>
@@ -130,9 +141,10 @@ export default function BudgetsPanel({
                   overBudget ? subtractMoney("0", remaining) : remaining
                 )} {overBudget ? "over" : "remaining"}
               </small>
-            </div>
+            </m.div>
           );
-        })}
+          })}
+        </AnimatePresence>
         {!budgets.length && (
           <p className="muted-copy">No budgets yet. Add your first monthly plan above.</p>
         )}

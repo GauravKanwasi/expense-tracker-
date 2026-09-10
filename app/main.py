@@ -5,13 +5,14 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from . import model
-from .routes.users import router as users_router
-from .routes.auth import router as auth_router
-from .routes.categories import router as categories_router
-from .routes.transactions import router as transactions_router
-from .routes.budgets import router as budgets_router
+from . import model  # noqa: F401 - Import models before routers register metadata.
 from .routes.analytics import router as analytics_router
+from .routes.auth import router as auth_router
+from .routes.budgets import router as budgets_router
+from .routes.categories import router as categories_router
+from .routes.recurring_transactions import router as recurring_transactions_router
+from .routes.transactions import router as transactions_router
+from .routes.users import router as users_router
 from .schemas import HealthResponse, MessageResponse
 
 logger = logging.getLogger("expense_tracker")
@@ -24,7 +25,7 @@ app = FastAPI(
         "A simple personal expense tracker API. "
         "Authenticate first, then manage categories, transactions, "
         "budgets, and analytics."
-    )
+    ),
 )
 
 
@@ -38,7 +39,7 @@ async def log_request(request: Request, call_next):
         request.method,
         request.url.path,
         response.status_code,
-        duration_ms
+        duration_ms,
     )
     return response
 
@@ -46,24 +47,17 @@ async def log_request(request: Request, call_next):
 @app.exception_handler(Exception)
 async def handle_unexpected_error(request: Request, error: Exception):
     logger.exception(
-        "event=unhandled_exception method=%s path=%s",
-        request.method,
-        request.url.path
+        "event=unhandled_exception method=%s path=%s", request.method, request.url.path
     )
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal server error"}
-    )
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173"
-    ],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Authorization", "Content-Type"]
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(users_router)
@@ -72,23 +66,16 @@ app.include_router(categories_router)
 app.include_router(transactions_router)
 app.include_router(budgets_router)
 app.include_router(analytics_router)
+app.include_router(recurring_transactions_router)
 
 
 @app.get(
-    "/",
-    response_model=MessageResponse,
-    tags=["system"],
-    summary="Check that the API is running"
+    "/", response_model=MessageResponse, tags=["system"], summary="Check that the API is running"
 )
 def root():
     return {"message": "Expense Tracker API is running"}
 
 
-@app.get(
-    "/health",
-    response_model=HealthResponse,
-    tags=["system"],
-    summary="Check API health"
-)
+@app.get("/health", response_model=HealthResponse, tags=["system"], summary="Check API health")
 def health_check():
     return {"status": "ok"}

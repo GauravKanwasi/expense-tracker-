@@ -6,36 +6,21 @@ from app.main import app
 
 def register_user(client, email="user@example.com", password="Password123"):
     response = client.post(
-        "/users/",
-        json={
-            "name": "Test User",
-            "email": email,
-            "password": password
-        }
+        "/users/", json={"name": "Test User", "email": email, "password": password}
     )
     assert response.status_code == 200, response.text
     return response.json()
 
 
 def auth_headers(client, email="user@example.com", password="Password123"):
-    login = client.post(
-        "/auth/login",
-        data={
-            "username": email,
-            "password": password
-        }
-    )
+    login = client.post("/auth/login", data={"username": email, "password": password})
     assert login.status_code == 200, login.text
     token = login.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
 
 def create_category(client, headers, name="Food"):
-    response = client.post(
-        "/categories/",
-        json={"name": name},
-        headers=headers
-    )
+    response = client.post("/categories/", json={"name": name}, headers=headers)
     assert response.status_code == 200, response.text
     return response.json()["id"]
 
@@ -47,7 +32,7 @@ def create_transaction(
     amount,
     transaction_type,
     transaction_date,
-    description="Test transaction"
+    description="Test transaction",
 ):
     response = client.post(
         "/transactions/",
@@ -56,9 +41,9 @@ def create_transaction(
             "amount": amount,
             "type": transaction_type,
             "description": description,
-            "date": transaction_date
+            "date": transaction_date,
         },
-        headers=headers
+        headers=headers,
     )
     assert response.status_code == 200, response.text
     return response.json()
@@ -69,30 +54,18 @@ def test_registration_duplicate_email_and_login(client):
 
     duplicate = client.post(
         "/users/",
-        json={
-            "name": "Another User",
-            "email": "user@example.com",
-            "password": "Password123"
-        }
+        json={"name": "Another User", "email": "user@example.com", "password": "Password123"},
     )
     assert duplicate.status_code == 400
 
     short_password = client.post(
         "/users/",
-        json={
-            "name": "Short Password",
-            "email": "short@example.com",
-            "password": "short"
-        }
+        json={"name": "Short Password", "email": "short@example.com", "password": "short"},
     )
     assert short_password.status_code == 422
 
     invalid_login = client.post(
-        "/auth/login",
-        data={
-            "username": "user@example.com",
-            "password": "wrong-password"
-        }
+        "/auth/login", data={"username": "user@example.com", "password": "wrong-password"}
     )
     assert invalid_login.status_code == 401
 
@@ -108,21 +81,18 @@ def test_login_rate_limit_and_logout(client):
 
     for _ in range(5):
         invalid_login = client.post(
-            "/auth/login",
-            data={"username": "user@example.com", "password": "wrong-password"}
+            "/auth/login", data={"username": "user@example.com", "password": "wrong-password"}
         )
         assert invalid_login.status_code == 401
 
     rate_limited = client.post(
-        "/auth/login",
-        data={"username": "user@example.com", "password": "wrong-password"}
+        "/auth/login", data={"username": "user@example.com", "password": "wrong-password"}
     )
     assert rate_limited.status_code == 429
     assert "retry-after" in rate_limited.headers
 
     clear_login = client.post(
-        "/auth/login",
-        data={"username": "another@example.com", "password": "wrong-password"}
+        "/auth/login", data={"username": "another@example.com", "password": "wrong-password"}
     )
     assert clear_login.status_code == 401
 
@@ -142,41 +112,25 @@ def test_logout_revokes_the_current_token(client):
 def test_account_and_category_text_is_normalized(client):
     created_user = client.post(
         "/users/",
-        json={
-            "name": "  Test User  ",
-            "email": "  USER@EXAMPLE.COM  ",
-            "password": "Password123"
-        }
+        json={"name": "  Test User  ", "email": "  USER@EXAMPLE.COM  ", "password": "Password123"},
     )
     assert created_user.status_code == 200, created_user.text
     assert created_user.json() == {
         "id": 1,
         "name": "Test User",
         "email": "user@example.com",
-        "timezone": "Asia/Kolkata"
+        "timezone": "Asia/Kolkata",
     }
 
     headers = auth_headers(client, email=" USER@EXAMPLE.COM ")
-    category = client.post(
-        "/categories/",
-        json={"name": "  Food  "},
-        headers=headers
-    )
+    category = client.post("/categories/", json={"name": "  Food  "}, headers=headers)
     assert category.status_code == 200
     assert category.json()["name"] == "Food"
 
-    duplicate_category = client.post(
-        "/categories/",
-        json={"name": "food"},
-        headers=headers
-    )
+    duplicate_category = client.post("/categories/", json={"name": "food"}, headers=headers)
     assert duplicate_category.status_code == 400
 
-    blank_category = client.post(
-        "/categories/",
-        json={"name": "   "},
-        headers=headers
-    )
+    blank_category = client.post("/categories/", json={"name": "   "}, headers=headers)
     assert blank_category.status_code == 422
 
 
@@ -186,7 +140,7 @@ def test_protected_routes_require_authentication(client):
         "/categories/",
         "/transactions/",
         "/budgets/",
-        "/analytics/summary"
+        "/analytics/summary",
     ]
 
     for route in protected_routes:
@@ -219,23 +173,18 @@ def test_cors_allows_local_frontend(client):
         headers={
             "Origin": "http://localhost:5173",
             "Access-Control-Request-Method": "GET",
-            "Access-Control-Request-Headers": "Authorization"
-        }
+            "Access-Control-Request-Headers": "Authorization",
+        },
     )
 
     assert response.status_code == 200
-    assert response.headers["access-control-allow-origin"] == (
-        "http://localhost:5173"
-    )
+    assert response.headers["access-control-allow-origin"] == ("http://localhost:5173")
 
 
 def test_cors_rejects_unknown_frontend(client):
     response = client.options(
         "/transactions/",
-        headers={
-            "Origin": "http://untrusted.example",
-            "Access-Control-Request-Method": "GET"
-        }
+        headers={"Origin": "http://untrusted.example", "Access-Control-Request-Method": "GET"},
     )
 
     assert "access-control-allow-origin" not in response.headers
@@ -246,34 +195,20 @@ def test_category_ownership(client):
     first_headers = auth_headers(client)
     category_id = create_category(client, first_headers)
     transaction = create_transaction(
-        client,
-        first_headers,
-        category_id,
-        250,
-        "expense",
-        "2026-08-29T12:00:00"
+        client, first_headers, category_id, 250, "expense", "2026-08-29T12:00:00"
     )
 
     register_user(client, email="second@example.com")
     second_headers = auth_headers(client, email="second@example.com")
 
-    response = client.get(
-        f"/categories/{category_id}",
-        headers=second_headers
-    )
+    response = client.get(f"/categories/{category_id}", headers=second_headers)
 
     assert response.status_code == 404
 
-    transaction_response = client.get(
-        f"/transactions/{transaction['id']}",
-        headers=second_headers
-    )
+    transaction_response = client.get(f"/transactions/{transaction['id']}", headers=second_headers)
     assert transaction_response.status_code == 404
 
-    cannot_delete = client.delete(
-        f"/categories/{category_id}",
-        headers=first_headers
-    )
+    cannot_delete = client.delete(f"/categories/{category_id}", headers=first_headers)
     assert cannot_delete.status_code == 400
 
 
@@ -283,12 +218,8 @@ def test_transaction_crud_filters_and_pagination(client):
     food_id = create_category(client, headers, "Food")
     tax_id = create_category(client, headers, "Tax")
 
-    expense = create_transaction(
-        client, headers, food_id, 250, "expense", "2026-08-29T12:00:00"
-    )
-    income = create_transaction(
-        client, headers, food_id, 1000, "income", "2026-08-28T12:00:00"
-    )
+    expense = create_transaction(client, headers, food_id, 250, "expense", "2026-08-29T12:00:00")
+    income = create_transaction(client, headers, food_id, 1000, "income", "2026-08-28T12:00:00")
     later_expense = create_transaction(
         client, headers, tax_id, 100, "expense", "2026-09-01T12:00:00"
     )
@@ -296,33 +227,25 @@ def test_transaction_crud_filters_and_pagination(client):
     all_transactions = client.get("/transactions/", headers=headers)
     assert all_transactions.status_code == 200
     assert [item["id"] for item in all_transactions.json()["items"]] == [
-        later_expense["id"], expense["id"], income["id"]
+        later_expense["id"],
+        expense["id"],
+        income["id"],
     ]
     assert all_transactions.json()["total"] == 3
 
-    expense_filter = client.get(
-        "/transactions/?type=expense",
-        headers=headers
-    )
+    expense_filter = client.get("/transactions/?type=expense", headers=headers)
     assert len(expense_filter.json()["items"]) == 2
     assert expense_filter.json()["total"] == 2
 
-    category_filter = client.get(
-        f"/transactions/?category_id={food_id}",
-        headers=headers
-    )
+    category_filter = client.get(f"/transactions/?category_id={food_id}", headers=headers)
     assert len(category_filter.json()["items"]) == 2
 
     date_filter = client.get(
-        "/transactions/?start_date=2026-08-01&end_date=2026-08-31",
-        headers=headers
+        "/transactions/?start_date=2026-08-01&end_date=2026-08-31", headers=headers
     )
     assert len(date_filter.json()["items"]) == 2
 
-    page = client.get(
-        "/transactions/?skip=1&limit=1",
-        headers=headers
-    )
+    page = client.get("/transactions/?skip=1&limit=1", headers=headers)
     assert [item["id"] for item in page.json()["items"]] == [expense["id"]]
     assert page.json()["total"] == 3
 
@@ -333,23 +256,17 @@ def test_transaction_crud_filters_and_pagination(client):
             "amount": 300,
             "type": "expense",
             "description": "Updated expense",
-            "date": "2026-08-29T12:00:00"
+            "date": "2026-08-29T12:00:00",
         },
-        headers=headers
+        headers=headers,
     )
     assert updated.status_code == 200
     assert updated.json()["amount"] == "300.00"
 
-    deleted = client.delete(
-        f"/transactions/{expense['id']}",
-        headers=headers
-    )
+    deleted = client.delete(f"/transactions/{expense['id']}", headers=headers)
     assert deleted.status_code == 200
 
-    missing = client.get(
-        f"/transactions/{expense['id']}",
-        headers=headers
-    )
+    missing = client.get(f"/transactions/{expense['id']}", headers=headers)
     assert missing.status_code == 404
 
 
@@ -364,9 +281,9 @@ def test_transaction_validation(client):
             "category_id": category_id,
             "amount": 100,
             "type": "invalid",
-            "date": "2026-08-29T12:00:00"
+            "date": "2026-08-29T12:00:00",
         },
-        headers=headers
+        headers=headers,
     )
     assert invalid_type.status_code == 422
 
@@ -376,16 +293,13 @@ def test_transaction_validation(client):
             "category_id": category_id,
             "amount": 0,
             "type": "expense",
-            "date": "2026-08-29T12:00:00"
+            "date": "2026-08-29T12:00:00",
         },
-        headers=headers
+        headers=headers,
     )
     assert invalid_amount.status_code == 422
 
-    invalid_filter = client.get(
-        "/transactions/?type=invalid",
-        headers=headers
-    )
+    invalid_filter = client.get("/transactions/?type=invalid", headers=headers)
     assert invalid_filter.status_code == 400
 
 
@@ -401,9 +315,9 @@ def test_large_money_values_are_preserved(client):
             "category_id": category_id,
             "amount": maximum_amount,
             "type": "income",
-            "date": "2026-08-29T12:00:00"
+            "date": "2026-08-29T12:00:00",
         },
-        headers=headers
+        headers=headers,
     )
 
     assert response.status_code == 200, response.text
@@ -456,9 +370,7 @@ def test_timezone_filters_keep_a_local_midnight_transaction_in_its_day(client):
     headers = auth_headers(client)
     category_id = create_category(client, headers, "Timezone")
 
-    created = create_transaction(
-        client, headers, category_id, 100, "income", "2026-08-01T00:15:00"
-    )
+    created = create_transaction(client, headers, category_id, 100, "income", "2026-08-01T00:15:00")
 
     included = client.get(
         "/transactions/?start_date=2026-08-01&end_date=2026-08-01",
@@ -479,22 +391,15 @@ def test_money_totals_keep_two_decimal_places(client):
     category_id = create_category(client, headers, "Small values")
 
     budget = client.post(
-        "/budgets/",
-        json={"year": 2026, "month": 8, "amount": "1.00"},
-        headers=headers
+        "/budgets/", json={"year": 2026, "month": 8, "amount": "1.00"}, headers=headers
     )
     assert budget.status_code == 200
 
-    create_transaction(
-        client, headers, category_id, "0.10", "expense", "2026-08-15T12:00:00"
-    )
-    create_transaction(
-        client, headers, category_id, "0.20", "expense", "2026-08-16T12:00:00"
-    )
+    create_transaction(client, headers, category_id, "0.10", "expense", "2026-08-15T12:00:00")
+    create_transaction(client, headers, category_id, "0.20", "expense", "2026-08-16T12:00:00")
 
     summary = client.get(
-        "/analytics/summary?start_date=2026-08-01&end_date=2026-08-31",
-        headers=headers
+        "/analytics/summary?start_date=2026-08-01&end_date=2026-08-31", headers=headers
     )
     assert summary.status_code == 200
     assert summary.json()["total_expenses"] == "0.30"
@@ -511,9 +416,7 @@ def test_budget_crud_and_duplicate_protection(client):
     headers = auth_headers(client)
 
     created = client.post(
-        "/budgets/",
-        json={"year": 2026, "month": 8, "amount": 10000},
-        headers=headers
+        "/budgets/", json={"year": 2026, "month": 8, "amount": 10000}, headers=headers
     )
     assert created.status_code == 200
     budget_id = created.json()["id"]
@@ -523,16 +426,11 @@ def test_budget_crud_and_duplicate_protection(client):
 
     register_user(client, email="second@example.com")
     second_headers = auth_headers(client, email="second@example.com")
-    other_user_budget = client.get(
-        f"/budgets/{budget_id}",
-        headers=second_headers
-    )
+    other_user_budget = client.get(f"/budgets/{budget_id}", headers=second_headers)
     assert other_user_budget.status_code == 404
 
     duplicate = client.post(
-        "/budgets/",
-        json={"year": 2026, "month": 8, "amount": 12000},
-        headers=headers
+        "/budgets/", json={"year": 2026, "month": 8, "amount": 12000}, headers=headers
     )
     assert duplicate.status_code == 400
 
@@ -541,17 +439,12 @@ def test_budget_crud_and_duplicate_protection(client):
     assert len(listed.json()) == 1
 
     updated = client.put(
-        f"/budgets/{budget_id}",
-        json={"year": 2026, "month": 9, "amount": 12000},
-        headers=headers
+        f"/budgets/{budget_id}", json={"year": 2026, "month": 9, "amount": 12000}, headers=headers
     )
     assert updated.status_code == 200
     assert updated.json()["month"] == 9
 
-    deleted = client.delete(
-        f"/budgets/{budget_id}",
-        headers=headers
-    )
+    deleted = client.delete(f"/budgets/{budget_id}", headers=headers)
     assert deleted.status_code == 200
 
     assert client.get("/budgets/", headers=headers).json() == []
@@ -562,26 +455,13 @@ def test_over_budget_does_not_increase_available_cash(client):
     headers = auth_headers(client)
     category_id = create_category(client, headers, "Home")
 
-    client.post(
-        "/budgets/",
-        json={"year": 2026, "month": 8, "amount": 1000},
-        headers=headers
-    )
-    client.post(
-        "/budgets/",
-        json={"year": 2026, "month": 9, "amount": 2000},
-        headers=headers
-    )
-    create_transaction(
-        client, headers, category_id, 1200, "expense", "2026-08-15T12:00:00"
-    )
-    create_transaction(
-        client, headers, category_id, 2000, "income", "2026-08-01T12:00:00"
-    )
+    client.post("/budgets/", json={"year": 2026, "month": 8, "amount": 1000}, headers=headers)
+    client.post("/budgets/", json={"year": 2026, "month": 9, "amount": 2000}, headers=headers)
+    create_transaction(client, headers, category_id, 1200, "expense", "2026-08-15T12:00:00")
+    create_transaction(client, headers, category_id, 2000, "income", "2026-08-01T12:00:00")
 
     summary = client.get(
-        "/analytics/summary?start_date=2026-08-01&end_date=2026-09-30",
-        headers=headers
+        "/analytics/summary?start_date=2026-08-01&end_date=2026-09-30", headers=headers
     ).json()
 
     assert summary["cash_balance"] == "800.00"
@@ -596,16 +476,11 @@ def test_analytics_summary_and_category_totals(client):
     headers = auth_headers(client)
     food_id = create_category(client, headers, "Food")
 
-    create_transaction(
-        client, headers, food_id, 250, "expense", "2026-08-29T12:00:00"
-    )
-    create_transaction(
-        client, headers, food_id, 1000, "income", "2026-08-28T12:00:00"
-    )
+    create_transaction(client, headers, food_id, 250, "expense", "2026-08-29T12:00:00")
+    create_transaction(client, headers, food_id, 1000, "income", "2026-08-28T12:00:00")
 
     summary = client.get(
-        "/analytics/summary?start_date=2026-08-01&end_date=2026-08-31",
-        headers=headers
+        "/analytics/summary?start_date=2026-08-01&end_date=2026-08-31", headers=headers
     )
     assert summary.status_code == 200
     assert summary.json() == {
@@ -622,20 +497,15 @@ def test_analytics_summary_and_category_totals(client):
         "debt_interest": "0.00",
         "investment_contributions": "0.00",
         "investment_withdrawals": "0.00",
-        "budget_scope": "complete_months"
+        "budget_scope": "complete_months",
     }
 
     category_totals = client.get(
-        "/analytics/by-category?start_date=2026-08-01&end_date=2026-08-31",
-        headers=headers
+        "/analytics/by-category?start_date=2026-08-01&end_date=2026-08-31", headers=headers
     )
     assert category_totals.status_code == 200
     assert category_totals.json() == [
-        {
-            "category_id": food_id,
-            "category_name": "Food",
-            "total": "250.00"
-        }
+        {"category_id": food_id, "category_name": "Food", "total": "250.00"}
     ]
 
 
@@ -652,9 +522,9 @@ def test_debt_and_investment_transactions(client):
             "type": "debt",
             "debt_direction": "borrowed",
             "interest_amount": 250,
-            "date": "2026-08-29T12:00:00"
+            "date": "2026-08-29T12:00:00",
         },
-        headers=headers
+        headers=headers,
     )
     assert debt.status_code == 200, debt.text
     assert debt.json()["debt_direction"] == "borrowed"
@@ -667,9 +537,9 @@ def test_debt_and_investment_transactions(client):
             "amount": 1500,
             "type": "investment",
             "investment_action": "contribution",
-            "date": "2026-08-29T12:00:00"
+            "date": "2026-08-29T12:00:00",
         },
-        headers=headers
+        headers=headers,
     )
     assert investment.status_code == 200, investment.text
 
@@ -680,9 +550,9 @@ def test_debt_and_investment_transactions(client):
             "amount": 1000,
             "type": "debt",
             "debt_direction": "lent",
-            "date": "2026-08-30T12:00:00"
+            "date": "2026-08-30T12:00:00",
         },
-        headers=headers
+        headers=headers,
     )
     assert lent_debt.status_code == 200, lent_debt.text
 
@@ -693,9 +563,9 @@ def test_debt_and_investment_transactions(client):
             "amount": 200,
             "type": "investment",
             "investment_action": "withdrawal",
-            "date": "2026-08-31T12:00:00"
+            "date": "2026-08-31T12:00:00",
         },
-        headers=headers
+        headers=headers,
     )
     assert withdrawal.status_code == 200, withdrawal.text
 
@@ -714,9 +584,9 @@ def test_debt_and_investment_transactions(client):
             "category_id": category_id,
             "amount": 100,
             "type": "debt",
-            "date": "2026-08-29T12:00:00"
+            "date": "2026-08-29T12:00:00",
         },
-        headers=headers
+        headers=headers,
     )
     assert missing_direction.status_code == 422
 
@@ -727,18 +597,12 @@ def test_budget_spending_and_available_cash(client):
     category_id = create_category(client, headers, "Home")
 
     created = client.post(
-        "/budgets/",
-        json={"year": 2026, "month": 8, "amount": 1000},
-        headers=headers
+        "/budgets/", json={"year": 2026, "month": 8, "amount": 1000}, headers=headers
     )
     assert created.status_code == 200
 
-    create_transaction(
-        client, headers, category_id, 250, "expense", "2026-08-15T12:00:00"
-    )
-    create_transaction(
-        client, headers, category_id, 1000, "income", "2026-08-01T12:00:00"
-    )
+    create_transaction(client, headers, category_id, 250, "expense", "2026-08-15T12:00:00")
+    create_transaction(client, headers, category_id, 1000, "income", "2026-08-01T12:00:00")
 
     budgets = client.get("/budgets/", headers=headers)
     assert budgets.status_code == 200
@@ -747,8 +611,7 @@ def test_budget_spending_and_available_cash(client):
     assert budgets.json()[0]["percentage"] == 25.0
 
     summary = client.get(
-        "/analytics/summary?start_date=2026-08-01&end_date=2026-08-31",
-        headers=headers
+        "/analytics/summary?start_date=2026-08-01&end_date=2026-08-31", headers=headers
     )
     assert summary.status_code == 200
     assert summary.json()["cash_balance"] == "750.00"
@@ -757,16 +620,12 @@ def test_budget_spending_and_available_cash(client):
     assert summary.json()["budget_remaining"] == "750.00"
     assert summary.json()["available_after_budgets"] == "0.00"
 
-    deleted = client.delete(
-        f"/budgets/{created.json()['id']}",
-        headers=headers
-    )
+    deleted = client.delete(f"/budgets/{created.json()['id']}", headers=headers)
     assert deleted.status_code == 200
     assert client.get("/budgets/", headers=headers).json() == []
 
     after_delete = client.get(
-        "/analytics/summary?start_date=2026-08-01&end_date=2026-08-31",
-        headers=headers
+        "/analytics/summary?start_date=2026-08-01&end_date=2026-08-31", headers=headers
     ).json()
     assert after_delete["budget_total"] == "0.00"
     assert after_delete["budget_spent"] == "0.00"
@@ -784,12 +643,8 @@ def test_partial_month_filters_do_not_reserve_a_full_month_budget(client):
         json={"year": 2026, "month": 8, "amount": 1000},
         headers=headers,
     )
-    create_transaction(
-        client, headers, category_id, 500, "income", "2026-08-15T09:00:00"
-    )
-    create_transaction(
-        client, headers, category_id, 200, "expense", "2026-08-15T12:00:00"
-    )
+    create_transaction(client, headers, category_id, 500, "income", "2026-08-15T09:00:00")
+    create_transaction(client, headers, category_id, 200, "expense", "2026-08-15T12:00:00")
 
     summary = client.get(
         "/analytics/summary?start_date=2026-08-15&end_date=2026-08-15",
@@ -800,3 +655,58 @@ def test_partial_month_filters_do_not_reserve_a_full_month_budget(client):
     assert summary["budget_total"] == "0.00"
     assert summary["budget_spent"] == "0.00"
     assert summary["available_after_budgets"] == "300.00"
+
+
+def test_recurring_transactions_generate_once_and_keep_history(client):
+    register_user(client)
+    headers = auth_headers(client)
+    category_id = create_category(client, headers, "Subscriptions")
+
+    created = client.post(
+        "/recurring-transactions/",
+        json={
+            "category_id": category_id,
+            "amount": "499.99",
+            "type": "expense",
+            "description": "Music subscription",
+            "frequency": "weekly",
+            "next_due_at": "2026-08-27T09:00:00",
+            "active": True,
+        },
+        headers=headers,
+    )
+    assert created.status_code == 200, created.text
+    rule_id = created.json()["id"]
+
+    category_in_use = client.delete(f"/categories/{category_id}", headers=headers)
+    assert category_in_use.status_code == 400
+
+    register_user(client, email="second@example.com")
+    second_headers = auth_headers(client, email="second@example.com")
+    hidden = client.get(f"/recurring-transactions/{rule_id}", headers=second_headers)
+    assert hidden.status_code == 404
+
+    generated = client.post(
+        "/recurring-transactions/generate",
+        json={"through_date": "2026-09-10"},
+        headers=headers,
+    )
+    assert generated.status_code == 200, generated.text
+    assert [item["amount"] for item in generated.json()["generated"]] == [
+        "499.99",
+        "499.99",
+        "499.99",
+    ]
+
+    repeated = client.post(
+        "/recurring-transactions/generate",
+        json={"through_date": "2026-09-10"},
+        headers=headers,
+    )
+    assert repeated.status_code == 200
+    assert repeated.json()["generated"] == []
+    assert client.get("/transactions/", headers=headers).json()["total"] == 3
+
+    deleted = client.delete(f"/recurring-transactions/{rule_id}", headers=headers)
+    assert deleted.status_code == 200
+    assert client.get("/transactions/", headers=headers).json()["total"] == 3

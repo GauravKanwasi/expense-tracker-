@@ -1,31 +1,28 @@
 import os
 
-os.environ["DATABASE_URL"] = "sqlite://"
-os.environ["JWT_SECRET_KEY"] = "test-secret-key-that-is-at-least-32-bytes"
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+test_database_url = os.getenv("TEST_DATABASE_URL", "sqlite://")
+os.environ["DATABASE_URL"] = test_database_url
+os.environ["JWT_SECRET_KEY"] = "test-secret-key-that-is-at-least-32-bytes"
+
 from app.database import Base, get_db
 from app.main import app
 from app.routes.auth import clear_login_attempts
 from app.security import clear_revoked_tokens
 
-
-test_engine = create_engine(
-    "sqlite://",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool
+engine_options = (
+    {"connect_args": {"check_same_thread": False}, "poolclass": StaticPool}
+    if test_database_url.startswith("sqlite")
+    else {}
 )
+test_engine = create_engine(test_database_url, **engine_options)
 
-TestingSessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=test_engine
-)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
 
 @pytest.fixture(autouse=True)

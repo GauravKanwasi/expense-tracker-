@@ -1,17 +1,9 @@
+from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Annotated, Literal
 
-from pydantic import (
-    BaseModel,
-    EmailStr,
-    Field,
-    PlainSerializer,
-    field_validator,
-    model_validator
-)
-
-from datetime import datetime
+from pydantic import BaseModel, EmailStr, Field, PlainSerializer, field_validator, model_validator
 
 
 def serialize_money(value: Decimal) -> str:
@@ -23,20 +15,10 @@ def serialize_money(value: Decimal) -> str:
 MoneyAmount = Annotated[
     Decimal,
     Field(decimal_places=2),
-    PlainSerializer(
-        serialize_money,
-        return_type=str,
-        when_used="json"
-    )
+    PlainSerializer(serialize_money, return_type=str, when_used="json"),
 ]
-PositiveMoney = Annotated[
-    Decimal,
-    Field(gt=Decimal("0"), max_digits=31, decimal_places=2)
-]
-NonNegativeMoney = Annotated[
-    Decimal,
-    Field(ge=Decimal("0"), max_digits=31, decimal_places=2)
-]
+PositiveMoney = Annotated[Decimal, Field(gt=Decimal("0"), max_digits=31, decimal_places=2)]
+NonNegativeMoney = Annotated[Decimal, Field(ge=Decimal("0"), max_digits=31, decimal_places=2)]
 
 
 def clean_required_text(value: str, field_name: str) -> str:
@@ -101,12 +83,11 @@ class InvestmentAction(str, Enum):
     withdrawal = "withdrawal"
 
 
-class TransactionBase(BaseModel):
+class TransactionDetails(BaseModel):
     category_id: int = Field(gt=0)
     amount: PositiveMoney
     type: TransactionType
     description: str | None = Field(default=None, max_length=255)
-    date: datetime
     debt_direction: DebtDirection | None = None
     interest_amount: NonNegativeMoney | None = None
     investment_action: InvestmentAction | None = None
@@ -126,6 +107,10 @@ class TransactionBase(BaseModel):
             raise ValueError("investment_action can only be used for investment transactions")
 
         return self
+
+
+class TransactionBase(TransactionDetails):
+    date: datetime
 
 
 class TransactionCreate(TransactionBase):
@@ -154,6 +139,40 @@ class TransactionPageResponse(BaseModel):
     total: int = Field(ge=0)
     skip: int = Field(ge=0)
     limit: int = Field(ge=1)
+
+
+class RecurrenceFrequency(str, Enum):
+    weekly = "weekly"
+    monthly = "monthly"
+
+
+class RecurringTransactionBase(TransactionDetails):
+    frequency: RecurrenceFrequency
+    next_due_at: datetime
+    active: bool = True
+
+
+class RecurringTransactionCreate(RecurringTransactionBase):
+    pass
+
+
+class RecurringTransactionUpdate(RecurringTransactionBase):
+    pass
+
+
+class RecurringTransactionResponse(RecurringTransactionBase):
+    id: int
+    amount: MoneyAmount
+    interest_amount: MoneyAmount | None = None
+    created_at: datetime | None = None
+
+
+class RecurringGenerationRequest(BaseModel):
+    through_date: date | None = None
+
+
+class RecurringGenerationResponse(BaseModel):
+    generated: list[TransactionResponse]
 
 
 class BudgetBase(BaseModel):

@@ -1,7 +1,7 @@
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from app import model  # Registers every model with Base.metadata.
+from app import model  # noqa: F401 - Registers every model with Base.metadata.
 from app.database import DATABASE_URL, Base
 
 config = context.config

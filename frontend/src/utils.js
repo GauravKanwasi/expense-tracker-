@@ -18,6 +18,7 @@ export const emptyData = {
   categories: [],
   transactions: [],
   transactionTotal: 0,
+  recurring: [],
   budgets: [],
   categoryTotals: []
 };
@@ -48,6 +49,11 @@ export function blankTransaction(categoryId = "") {
     description: "",
     date: localDateTime()
   };
+}
+
+export function blankRecurring(categoryId = "") {
+  const { date: _date, ...transaction } = blankTransaction(categoryId);
+  return { ...transaction, frequency: "monthly", next_due_at: localDateTime(), active: true };
 }
 
 export function formatMoney(value) {

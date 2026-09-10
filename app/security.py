@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta, timezone
 import os
+from datetime import datetime, timedelta, timezone
 from threading import Lock
 from uuid import uuid4
 
@@ -7,12 +7,11 @@ import jwt
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session
 from pwdlib import PasswordHash
+from sqlalchemy.orm import Session
 
 from .database import get_db
 from .model import User
-
 
 load_dotenv()
 
@@ -35,7 +34,7 @@ def credentials_exception() -> HTTPException:
     return HTTPException(
         status_code=401,
         detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"}
+        headers={"WWW-Authenticate": "Bearer"},
     )
 
 
@@ -56,11 +55,7 @@ def is_token_revoked(token_id: str) -> bool:
 
 def decode_access_token(token: str, check_revocation: bool = True) -> dict:
     try:
-        payload = jwt.decode(
-            token,
-            JWT_SECRET_KEY,
-            algorithms=[JWT_ALGORITHM]
-        )
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
         token_id = payload.get("jti")
 
         if payload.get("sub") is None or token_id is None:
@@ -84,21 +79,11 @@ def verify_password(password: str, hashed_password: str) -> bool:
 
 
 def create_access_token(user_id: int) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(
-        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
-    )
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    payload = {
-        "sub": str(user_id),
-        "exp": expire,
-        "jti": uuid4().hex
-    }
+    payload = {"sub": str(user_id), "exp": expire, "jti": uuid4().hex}
 
-    return jwt.encode(
-        payload,
-        JWT_SECRET_KEY,
-        algorithm=JWT_ALGORITHM
-    )
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
 def revoke_access_token(token: str) -> None:
@@ -110,10 +95,7 @@ def revoke_access_token(token: str) -> None:
         revoked_tokens[token_id] = expiry
 
 
-def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
-):
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:
         payload = decode_access_token(token)
         user_id = int(payload["sub"])

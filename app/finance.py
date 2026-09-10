@@ -2,7 +2,6 @@ from datetime import date, datetime, time, timedelta, timezone
 from decimal import Context, Decimal, localcontext
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-
 DEFAULT_TIMEZONE = "Asia/Kolkata"
 UTC = timezone.utc
 ZERO = Decimal("0.00")
@@ -48,11 +47,7 @@ def utc_day_bounds(
     end_date: date | None,
     zone: ZoneInfo,
 ) -> tuple[datetime | None, datetime | None]:
-    start = (
-        to_utc(datetime.combine(start_date, time.min), zone)
-        if start_date is not None
-        else None
-    )
+    start = to_utc(datetime.combine(start_date, time.min), zone) if start_date is not None else None
     end = (
         to_utc(datetime.combine(end_date + timedelta(days=1), time.min), zone)
         if end_date is not None
@@ -82,9 +77,8 @@ def is_complete_budget_month(
     month_start = date(year, month, 1)
     next_month = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
     month_end = next_month - timedelta(days=1)
-    return (
-        (start_date is None or start_date <= month_start)
-        and (end_date is None or end_date >= month_end)
+    return (start_date is None or start_date <= month_start) and (
+        end_date is None or end_date >= month_end
     )
 
 
