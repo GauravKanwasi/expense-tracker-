@@ -4,7 +4,7 @@
   <p>
     <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12">
     <img src="https://img.shields.io/badge/FastAPI-REST_API-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI REST API">
-    <img src="https://img.shields.io/badge/tests-30_passing-2ea44f?style=for-the-badge" alt="Thirty tests passing">
+    <img src="https://img.shields.io/badge/tests-31_passing-2ea44f?style=for-the-badge" alt="Thirty-one tests passing">
   </p>
   <p>
     <a href="http://127.0.0.1:8000/docs">Open Swagger docs</a> |
@@ -14,7 +14,7 @@
     <tr>
       <td><strong>Backend</strong><br>Ready for frontend integration</td>
       <td><strong>Interactive docs</strong><br>Swagger UI at <code>/docs</code></td>
-      <td><strong>Tests</strong><br>22 API + 8 frontend checks</td>
+      <td><strong>Tests</strong><br>23 API + 8 frontend checks</td>
     </tr>
   </table>
 </div>

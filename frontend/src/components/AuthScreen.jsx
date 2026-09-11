@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ElectricBorder from "./ElectricBorder";
 
 export default function AuthScreen({
   mode,
@@ -38,6 +39,7 @@ export default function AuthScreen({
       </section>
 
       <section className="auth-panel">
+        <ElectricBorder className="auth-electric-border" color="#34d399" speed={0.65}>
         <div className="auth-card animate__animated animate__fadeInUp animate__faster">
           <p className="eyebrow">{isRegister ? "GET STARTED" : "WELCOME BACK"}</p>
           <h2>{isRegister ? "Create your workspace" : "Sign in to Ledgerly"}</h2>
@@ -111,6 +113,7 @@ export default function AuthScreen({
             </button>
           </p>
         </div>
+        </ElectricBorder>
       </section>
     </main>
   );

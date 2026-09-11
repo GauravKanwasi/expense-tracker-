@@ -131,6 +131,7 @@ class RecurringTransaction(Base):
     interest_amount = Column(MoneyType(), nullable=True)
     investment_action = Column(String(20), nullable=True)
     frequency = Column(String(20), nullable=False)
+    due_day = Column(Integer, nullable=False)
     next_due_at = Column(DateTime(timezone=True), nullable=False)
     active = Column(Boolean, nullable=False, server_default="true")
     created_at = Column(DateTime(timezone=True), server_default=func.now())

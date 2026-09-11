@@ -5,6 +5,8 @@ import {
   transactionLabel,
   transactionSign
 } from "../utils";
+import { AnimatePresence, useReducedMotion } from "motion/react";
+import * as m from "motion/react-m";
 import { CardHeading } from "./ui";
 
 export default function RecurringPanel({
@@ -19,6 +21,7 @@ export default function RecurringPanel({
   onDelete
 }) {
   const updateForm = (field, value) => onFormChange({ ...form, [field]: value });
+  const shouldReduceMotion = useReducedMotion();
 
   return (
     <section id="recurring" className="card section-card">
@@ -86,8 +89,16 @@ export default function RecurringPanel({
             />
           </label>
         </div>
+        <AnimatePresence initial={false} mode="wait">
         {form.type === "debt" && (
-          <div className="recurring-grid detail-panel debt-panel">
+          <m.div
+            key="recurring-debt-details"
+            className="recurring-grid detail-panel debt-panel"
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.18 }}
+          >
             <label>
               Direction
               <select value={form.debt_direction} onChange={(event) => updateForm("debt_direction", event.target.value)}>
@@ -106,17 +117,25 @@ export default function RecurringPanel({
                 onChange={(event) => updateForm("interest_amount", sanitizeMoneyInput(event.target.value))}
               />
             </label>
-          </div>
+          </m.div>
         )}
         {form.type === "investment" && (
-          <label className="recurring-action">
-            Investment action
-            <select value={form.investment_action} onChange={(event) => updateForm("investment_action", event.target.value)}>
-              <option value="contribution">Money invested</option>
-              <option value="withdrawal">Money withdrawn</option>
-            </select>
-          </label>
+          <m.label
+            key="recurring-investment-details"
+            className="recurring-action"
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.18 }}
+          >
+              Investment action
+              <select value={form.investment_action} onChange={(event) => updateForm("investment_action", event.target.value)}>
+                <option value="contribution">Money invested</option>
+                <option value="withdrawal">Money withdrawn</option>
+              </select>
+          </m.label>
         )}
+        </AnimatePresence>
         <button className="button button-dark" disabled={!categories.length || actionLoading === "recurring"}>
           {actionLoading === "recurring" ? "Saving..." : "Save schedule"}
         </button>
@@ -134,8 +153,21 @@ export default function RecurringPanel({
         </button>
       </div>
       <div className="recurring-list">
-        {recurring.map((rule) => (
-          <div className="recurring-row" key={rule.id}>
+        <AnimatePresence initial={false}>
+        {recurring.map((rule, motionIndex) => (
+          <m.div
+            layout="position"
+            className={"recurring-row" + (rule.active ? "" : " paused")}
+            key={rule.id}
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 10, scale: 0.985 }}
+            animate={{ opacity: rule.active ? 1 : 0.7, y: 0, scale: 1 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.985 }}
+            whileHover={shouldReduceMotion ? undefined : { y: -2 }}
+            transition={{
+              duration: shouldReduceMotion ? 0 : 0.2,
+              delay: shouldReduceMotion ? 0 : Math.min(motionIndex, 5) * 0.04
+            }}
+          >
             <span className={"transaction-icon " + rule.type}>{transactionSign(rule)}</span>
             <div>
               <strong>{rule.description || "Untitled schedule"}</strong>
@@ -163,8 +195,9 @@ export default function RecurringPanel({
                 ×
               </button>
             </div>
-          </div>
+          </m.div>
         ))}
+        </AnimatePresence>
         {!recurring.length && <p className="muted-copy">Save a schedule for repeat income, rent, subscriptions, or EMI payments.</p>}
       </div>
     </section>

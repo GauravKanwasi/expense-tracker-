@@ -4,8 +4,7 @@ import {
   transactionLabel,
   transactionSign
 } from "../utils";
-import { AnimatePresence, useReducedMotion } from "motion/react";
-import * as m from "motion/react-m";
+import AnimatedList from "./AnimatedList";
 import { CardHeading, EmptyState } from "./ui";
 
 export default function TransactionsPanel({
@@ -26,7 +25,6 @@ export default function TransactionsPanel({
     categories.map((category) => [category.id, category.name])
   );
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
-  const shouldReduceMotion = useReducedMotion();
 
   return (
     <section id="transactions" className="card section-card">
@@ -76,22 +74,13 @@ export default function TransactionsPanel({
             <span className="align-right">Amount</span>
             <span className="align-right">Actions</span>
           </div>
-          <div className="transaction-scroll">
-            <AnimatePresence initial={false}>
-              {transactions.map((transaction, motionIndex) => (
-              <m.div
-                layout="position"
-                className="transaction-row"
-                key={transaction.id}
-                initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
-                whileHover={shouldReduceMotion ? undefined : { x: 4 }}
-                transition={{
-                  duration: shouldReduceMotion ? 0 : 0.18,
-                  delay: shouldReduceMotion ? 0 : Math.min(motionIndex, 5) * 0.035
-                }}
-              >
+          <AnimatedList
+            items={transactions}
+            getKey={(transaction) => transaction.id}
+            scrollClassName="transaction-scroll"
+            ariaLabel="Recent transactions"
+            renderItem={(transaction) => (
+              <div className="transaction-row">
                 <div className="transaction-name">
                   <span className={"transaction-icon " + transaction.type}>
                     {transactionSign(transaction)}
@@ -125,10 +114,9 @@ export default function TransactionsPanel({
                     ×
                   </button>
                 </div>
-              </m.div>
-              ))}
-            </AnimatePresence>
-          </div>
+              </div>
+            )}
+          />
           {total > pageSize && (
             <div className="pagination-controls">
               <button

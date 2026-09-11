@@ -67,6 +67,7 @@ def verify_category(db: Session, category_id: int, user_id: int) -> None:
 
 def apply_rule(rule: RecurringTransaction, data, timezone_name: str) -> None:
     zone = user_zone(timezone_name)
+    due_at = to_utc(data.next_due_at, zone)
     rule.category_id = data.category_id
     rule.amount = data.amount
     rule.type = data.type.value
@@ -75,7 +76,8 @@ def apply_rule(rule: RecurringTransaction, data, timezone_name: str) -> None:
     rule.interest_amount = data.interest_amount
     rule.investment_action = data.investment_action.value if data.investment_action else None
     rule.frequency = data.frequency.value
-    rule.next_due_at = to_utc(data.next_due_at, zone)
+    rule.due_day = in_user_timezone(due_at, zone).day
+    rule.next_due_at = due_at
     rule.active = data.active
 
 
@@ -87,8 +89,20 @@ def next_due_at(rule: RecurringTransaction, timezone_name: str) -> datetime:
 
     month = local_due.month % 12 + 1
     year = local_due.year + (local_due.month == 12)
-    day = min(local_due.day, monthrange(year, month)[1])
+    day = min(rule.due_day, monthrange(year, month)[1])
     return to_utc(local_due.replace(year=year, month=month, day=day), zone)
+
+
+def has_generated_due(db: Session, rule: RecurringTransaction) -> bool:
+    return (
+        db.query(Transaction.id)
+        .filter(
+            Transaction.recurring_transaction_id == rule.id,
+            Transaction.date == rule.next_due_at,
+        )
+        .first()
+        is not None
+    )
 
 
 @router.post(
@@ -151,21 +165,22 @@ def generate_due_transactions(
             if len(generated) >= MAX_GENERATIONS_PER_REQUEST:
                 db.commit()
                 return {"generated": [transaction_response(item) for item in generated]}
-            entry = Transaction(
-                user_id=current_user.id,
-                category_id=rule.category_id,
-                amount=rule.amount,
-                type=rule.type,
-                description=rule.description,
-                debt_direction=rule.debt_direction,
-                interest_amount=rule.interest_amount,
-                investment_action=rule.investment_action,
-                date=rule.next_due_at,
-                recurring_transaction_id=rule.id,
-            )
-            db.add(entry)
-            db.flush()
-            generated.append(entry)
+            if not has_generated_due(db, rule):
+                entry = Transaction(
+                    user_id=current_user.id,
+                    category_id=rule.category_id,
+                    amount=rule.amount,
+                    type=rule.type,
+                    description=rule.description,
+                    debt_direction=rule.debt_direction,
+                    interest_amount=rule.interest_amount,
+                    investment_action=rule.investment_action,
+                    date=rule.next_due_at,
+                    recurring_transaction_id=rule.id,
+                )
+                db.add(entry)
+                db.flush()
+                generated.append(entry)
             rule.next_due_at = next_due_at(rule, current_user.timezone)
 
     db.commit()

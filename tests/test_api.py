@@ -710,3 +710,43 @@ def test_recurring_transactions_generate_once_and_keep_history(client):
     deleted = client.delete(f"/recurring-transactions/{rule_id}", headers=headers)
     assert deleted.status_code == 200
     assert client.get("/transactions/", headers=headers).json()["total"] == 3
+
+
+def test_recurring_monthly_schedule_keeps_its_day_and_skips_rewound_dates(client):
+    register_user(client)
+    headers = auth_headers(client)
+    category_id = create_category(client, headers, "Rent")
+    payload = {
+        "category_id": category_id,
+        "amount": "15000.00",
+        "type": "expense",
+        "description": "Rent",
+        "frequency": "monthly",
+        "next_due_at": "2026-01-31T09:00:00",
+        "active": True,
+    }
+    created = client.post("/recurring-transactions/", json=payload, headers=headers)
+    assert created.status_code == 200, created.text
+    rule_id = created.json()["id"]
+
+    generated = client.post(
+        "/recurring-transactions/generate",
+        json={"through_date": "2026-03-31"},
+        headers=headers,
+    )
+    assert generated.status_code == 200, generated.text
+    assert len(generated.json()["generated"]) == 3
+
+    rewound = client.put(f"/recurring-transactions/{rule_id}", json=payload, headers=headers)
+    assert rewound.status_code == 200, rewound.text
+    repeated = client.post(
+        "/recurring-transactions/generate",
+        json={"through_date": "2026-03-31"},
+        headers=headers,
+    )
+    assert repeated.status_code == 200, repeated.text
+    assert repeated.json()["generated"] == []
+
+    rule = client.get(f"/recurring-transactions/{rule_id}", headers=headers)
+    assert rule.status_code == 200
+    assert rule.json()["next_due_at"].startswith("2026-04-30")
